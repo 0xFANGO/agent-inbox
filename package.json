@@ -1,0 +1,155 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "agent-inbox",
+  "title": "Session Manager",
+  "description": "订阅 Claude Code 与 Codex 会话，等你输入时提醒，一键跳回原对话。Subscribe to Claude Code and Codex sessions, get notified when they wait for you, and jump back.",
+  "icon": "extension-icon.png",
+  "author": "fango",
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Developer Tools",
+    "Productivity"
+  ],
+  "keywords": [
+    "claude",
+    "codex",
+    "agent",
+    "session",
+    "inbox",
+    "会话",
+    "收件箱"
+  ],
+  "commands": [
+    {
+      "name": "inbox",
+      "title": "收件箱",
+      "subtitle": "Session Manager",
+      "description": "只看该处理的会话：等我输入 / 运行中 / 已完成。Inbox of sessions that need you.",
+      "mode": "view",
+      "keywords": [
+        "inbox",
+        "sessions",
+        "shoujianxiang"
+      ]
+    },
+    {
+      "name": "all-sessions",
+      "title": "全部会话",
+      "subtitle": "Session Manager",
+      "description": "找到任意会话并订阅，包括历史会话。Find and subscribe to any session.",
+      "mode": "view",
+      "keywords": [
+        "all sessions",
+        "search",
+        "history",
+        "quanbu"
+      ]
+    },
+    {
+      "name": "subscribe-current",
+      "title": "订阅当前会话",
+      "subtitle": "Session Manager",
+      "description": "订阅前台窗口对应的会话，建议热键 ⌃⌥S。Subscribe to the session in the front window.",
+      "mode": "no-view",
+      "keywords": [
+        "subscribe",
+        "current",
+        "follow",
+        "dingyue"
+      ]
+    },
+    {
+      "name": "menu-bar",
+      "title": "菜单栏",
+      "subtitle": "Session Manager",
+      "description": "常驻显示等你输入的会话数。Shows how many sessions wait for you.",
+      "mode": "menu-bar",
+      "interval": "1m",
+      "keywords": [
+        "menu bar",
+        "count"
+      ]
+    },
+    {
+      "name": "setup",
+      "title": "接入 Agent",
+      "subtitle": "Session Manager",
+      "description": "写入 Claude Code / Codex 的 hooks（写入前展示内容）。Connect Claude Code and Codex.",
+      "mode": "view",
+      "keywords": [
+        "setup",
+        "install",
+        "hooks",
+        "jieru"
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "language",
+      "title": "语言 / Language",
+      "description": "界面与通知语言。Language for the interface and notifications.",
+      "type": "dropdown",
+      "required": false,
+      "default": "zh",
+      "data": [
+        {
+          "title": "中文",
+          "value": "zh"
+        },
+        {
+          "title": "English",
+          "value": "en"
+        }
+      ]
+    },
+    {
+      "name": "resumeTerminal",
+      "title": "恢复会话用的终端 / Terminal",
+      "description": "原窗口已关闭时，在哪个终端里恢复 CLI 会话。Terminal used to resume a CLI session whose window is gone.",
+      "type": "dropdown",
+      "required": false,
+      "default": "terminal",
+      "data": [
+        {
+          "title": "Terminal",
+          "value": "terminal"
+        },
+        {
+          "title": "iTerm2",
+          "value": "iterm"
+        },
+        {
+          "title": "Ghostty",
+          "value": "ghostty"
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^2.10.1",
+    "@raycast/utils": "^2.3.3"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build:cli": "esbuild cli/agent-inbox.ts --bundle --platform=node --format=esm --target=node18 --outfile=assets/agent-inbox.mjs --banner:js='#!/usr/bin/env node'",
+    "build": "npm run build:cli && ray build",
+    "dev": "npm run build:cli && ray develop",
+    "typecheck": "tsc --noEmit",
+    "test": "esbuild test/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --out-extension:.js=.mjs --log-level=warning && node --test .test-build/*.test.mjs",
+    "lint": "ray lint",
+    "fix-lint": "ray lint --fix",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}
