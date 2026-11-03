@@ -1,0 +1,33 @@
+import { closeMainWindow, showHUD, showToast, Toast } from "@raycast/api";
+import { getAdapter } from "../core/adapters";
+import { Store } from "../core/db";
+import { Translator } from "../core/i18n";
+import { Config, Session } from "../core/types";
+
+export const store = new Store();
+
+/** Jump back to the session and close Raycast. Shows a HUD when a fallback was used. */
+export async function jumpBack(session: Session, config: Config, t: Translator): Promise<void> {
+  const adapter = getAdapter(session.agent);
+  if (!adapter) {
+    await showToast({ style: Toast.Style.Failure, title: t("toast.jumpFailed"), message: session.agent });
+    return;
+  }
+  const toast = await showToast({ style: Toast.Style.Animated, title: t("action.jump") });
+  try {
+    const r = await adapter.jump(session, config);
+    if (!r.ok) {
+      toast.style = Toast.Style.Failure;
+      toast.title = t("toast.jumpFailed");
+      return;
+    }
+    toast.hide();
+    if (r.method === "copied") await showHUD(t("toast.copiedId"));
+    else if (r.method === "resume") await showHUD(t("toast.resumed"));
+    else await closeMainWindow({ clearRootSearch: true });
+  } catch (e) {
+    toast.style = Toast.Style.Failure;
+    toast.title = t("toast.jumpFailed");
+    toast.message = String((e as Error).message ?? e);
+  }
+}

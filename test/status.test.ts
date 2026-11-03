@@ -1,0 +1,101 @@
+import { strict as assert } from "node:assert";
+import { test } from "node:test";
+import { applyEvent, endsWithQuestion, groupInbox, inboxSection, toTitle, waitingCount } from "../src/core/status";
+import { AgentEvent, Session } from "../src/core/types";
+
+const ev = (type: AgentEvent["type"], extra: Partial<AgentEvent> = {}): AgentEvent => ({
+  agent: "claude",
+  sessionId: "s1",
+  type,
+  at: 1000,
+  ...extra,
+});
+
+function run(events: AgentEvent[], start?: Session): Session {
+  let s = start;
+  for (const e of events) {
+    const t = applyEvent(s, e);
+    if (t) s = t.next;
+  }
+  return s!;
+}
+
+test("new session starts idle and gets its title from the first prompt", () => {
+  const s = run([
+    ev("started", { cwd: "/p" }),
+    ev("progress", { title: "写文章：Session manager 选题\n更多" }),
+    ev("progress", { title: "second" }),
+  ]);
+  assert.equal(s.status, "running");
+  assert.equal(s.title, "写文章：Session manager 选题");
+  assert.equal(s.cwd, "/p");
+});
+
+test("tool events only resume a session that was waiting", () => {
+  assert.equal(applyEvent(run([ev("progress")]), ev("tool")), null);
+  const waiting = run([ev("progress"), ev("needs_input", { attention: "permission" })]);
+  assert.equal(waiting.attention, "permission");
+  assert.equal(run([ev("tool")], waiting).status, "running");
+});
+
+test("notify only for subscribed sessions entering needs_input", () => {
+  const s = run([ev("progress")]);
+  assert.equal(applyEvent(s, ev("needs_input"))!.notify, false);
+  const sub = { ...s, subscribed: true };
+  assert.equal(applyEvent(sub, ev("needs_input"))!.notify, true);
+  const already = run([ev("needs_input")], sub);
+  assert.equal(applyEvent(already, ev("needs_input"))!.notify, false, "no repeat notification");
+  assert.equal(applyEvent(sub, ev("stopped"))!.notify, false, "done never notifies");
+});
+
+test("handled sessions come back only when the status changes", () => {
+  const done = { ...run([ev("progress"), ev("stopped")]), subscribed: true, handledAt: 5 };
+  assert.equal(inboxSection(done), null);
+  assert.equal(run([ev("ended")], done).handledAt, 5);
+  const again = run([ev("progress")], done);
+  assert.equal(again.handledAt, null);
+  assert.equal(inboxSection(again), "running");
+});
+
+test("inbox: waiting always shows, the rest only when subscribed; subscribed waiting first", () => {
+  const mk = (id: string, status: Session["status"], subscribed: boolean, updatedAt: number): Session => ({
+    ...run([ev("progress", { sessionId: id })]),
+    status,
+    subscribed,
+    updatedAt,
+  });
+  const list = [
+    mk("a", "needs_input", false, 50),
+    mk("b", "needs_input", true, 10),
+    mk("c", "running", false, 1),
+    mk("d", "running", true, 1),
+    mk("e", "done", true, 1),
+    mk("f", "idle", true, 1),
+  ];
+  const g = groupInbox(list);
+  assert.deepEqual(
+    g.needs_input.map((s) => s.sessionId),
+    ["b", "a"],
+  );
+  assert.deepEqual(
+    g.running.map((s) => s.sessionId),
+    ["d"],
+  );
+  assert.deepEqual(
+    g.done.map((s) => s.sessionId),
+    ["e"],
+  );
+  assert.equal(waitingCount(list), 1);
+});
+
+test("question heuristic", () => {
+  assert.equal(endsWithQuestion("初稿写完了。要不要挪到开头？"), true);
+  assert.equal(endsWithQuestion("Shall I continue?**"), true);
+  assert.equal(endsWithQuestion("Done.\n```js\nfoo?\n```"), false);
+  assert.equal(endsWithQuestion("All tests pass."), false);
+});
+
+test("titles are single-line and trimmed", () => {
+  assert.equal(toTitle("  \n# Fix the CI\nmore"), "Fix the CI");
+  assert.equal(toTitle("x".repeat(200)).length, 80);
+});
