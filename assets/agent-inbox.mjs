@@ -939,10 +939,11 @@ var claudeAdapter = {
   id: "claude",
   source: {
     transcript: claudeTranscript,
-    locateTranscript: async (session) => findTranscript(
-      CLAUDE_PROJECTS,
-      findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions())?.cliSessionId || session.sessionId
-    )
+    locateTranscript: async (session) => {
+      const local = findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions());
+      if (!local && CLAUDE_BRIDGE_ID.test(session.sessionId)) return void 0;
+      return findTranscript(CLAUDE_PROJECTS, local?.cliSessionId || session.sessionId);
+    }
   },
   name: "Claude Code",
   icon: "claude.svg",
@@ -1598,6 +1599,9 @@ var zh = {
   "section.done": "\u5DF2\u5B8C\u6210",
   "status.ready": "\u672C\u8F6E\u7ED3\u675F",
   "status.unknown": "\u72B6\u6001\u672A\u786E\u8BA4",
+  "status.cloudUnavailable": "\u4E91\u7AEF\u72B6\u6001\u672A\u63A5\u5165",
+  "hud.cloudSubscribed": "\u5DF2\u8BA2\u9605\uFF1A{title}\uFF08\u4E91\u7AEF\u72B6\u6001\u6682\u4E0D\u53EF\u7528\uFF09",
+  "meta.cloudUnavailable": "\u5DF2\u4FDD\u5B58\u6B64\u4E91\u7AEF\u4F1A\u8BDD\uFF0C\u53EF\u4ECE\u8BA2\u9605\u5217\u8868\u8DF3\u56DE\u3002\u5F53\u524D\u5C1A\u672A\u63A5\u5165\u4E91\u7AEF\u8FD0\u884C\u72B6\u6001\uFF0C\u65E0\u6CD5\u63D0\u4F9B\u5F85\u8F93\u5165\u63D0\u9192\u3002",
   "status.idle": "\u5C1A\u672A\u5F00\u59CB",
   "attention.interrupted": "\u5DF2\u4E2D\u65AD",
   "meta.status": "\u72B6\u6001",
@@ -1739,6 +1743,9 @@ var en = {
   "section.done": "Completed",
   "status.ready": "Turn ended",
   "status.unknown": "Status unknown",
+  "status.cloudUnavailable": "Cloud status unavailable",
+  "hud.cloudSubscribed": "Subscribed: {title} (cloud status unavailable)",
+  "meta.cloudUnavailable": "This cloud session is saved and can be reopened from Subscriptions. Cloud execution status is not connected, so waiting-for-input alerts are unavailable.",
   "status.idle": "Not started",
   "attention.interrupted": "Interrupted",
   "meta.status": "Status",

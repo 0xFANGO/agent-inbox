@@ -4,6 +4,7 @@ import { useCachedPromise } from "@raycast/utils";
 import { useEffect, useMemo, useState } from "react";
 import { hostTag, rowTime } from "./core/format";
 import { enrichCodexTitles, readCodexDesktopSessions } from "./core/codex-desktop";
+import { isClaudeCloudOnly } from "./core/claude-desktop";
 import { scanHistory } from "./core/history";
 import { Translator } from "./core/i18n";
 import { projectName } from "./core/paths";
@@ -123,7 +124,9 @@ export default function AllSessions() {
       });
       await showToast({
         style: Toast.Style.Success,
-        title: t(next ? "hud.subscribed" : "hud.unsubscribed", { title: s.title || s.sessionId }),
+        title: t(next ? (isClaudeCloudOnly(s) ? "hud.cloudSubscribed" : "hud.subscribed") : "hud.unsubscribed", {
+          title: s.title || s.sessionId,
+        }),
       });
     } catch (error) {
       await showToast({ style: Toast.Style.Failure, title: t("toast.error"), message: String(error) });

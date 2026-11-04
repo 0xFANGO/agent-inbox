@@ -1,4 +1,4 @@
-import { CLAUDE_BUNDLE, findClaudeDesktopSession, readClaudeDesktopSessions, sameClaudeBridgeId } from "./claude-desktop";
+import { CLAUDE_BUNDLE, CLAUDE_BRIDGE_ID, findClaudeDesktopSession, readClaudeDesktopSessions, sameClaudeBridgeId } from "./claude-desktop";
 import { CODEX_APP_BUNDLE } from "./adapters/codex";
 import { readCodexDesktopSessions } from "./codex-desktop";
 import { FocusedWindow, readFocusedWindow } from "./focused-window";
@@ -47,8 +47,8 @@ function unique(sessions: Session[]): Session | undefined {
 function documentId(bundleId: string, raw: string): string | undefined {
   try {
     const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    if (bundleId === CLAUDE_BUNDLE && url.hostname === "claude.ai") {
-      return url.pathname.match(/^\/(?:epitaxy|code)\/((?:local_|session_|cse_)[A-Za-z0-9-]+)\/?$/)?.[1];
+    if (bundleId === CLAUDE_BUNDLE && url.protocol === "https:" && url.hostname === "claude.ai" && !url.username && !url.password) {
+      return url.pathname.match(/^\/(?:epitaxy|code)\/((?:local_|session_|cse_)[A-Za-z0-9-]{1,128})\/?$/)?.[1];
     }
   } catch {
     // Missing or unsupported document URL.
@@ -151,16 +151,39 @@ export async function sessionForForeground(
     }
     const id = documentId(bundleId, window.url);
     if (id) {
+      const otherId = window.documentUrl ? documentId(bundleId, window.documentUrl) : undefined;
+      if (otherId && otherId !== id && !sameClaudeBridgeId(otherId, id)) return undefined;
       const localId = findClaudeDesktopSession(id, desktop)?.sessionId;
-      return unique(
-        candidates.filter(
-          (s) =>
-            s.sessionId === id ||
-            s.locator.claudeDesktopId === id ||
-            (localId && s.locator.claudeDesktopId === localId) ||
-            sameClaudeBridgeId(s.sessionId, id),
-        ),
+      const matches = candidates.filter(
+        (s) =>
+          s.sessionId === id ||
+          s.locator.claudeDesktopId === id ||
+          (localId && s.locator.claudeDesktopId === localId) ||
+          sameClaudeBridgeId(s.sessionId, id),
       );
+      if (matches.length) return unique(matches);
+      // Preserve ambiguous/archived local mappings; don't manufacture a cloud duplicate.
+      if (desktop.some((r) => r.sessionId === id || r.bridgeSessionIds?.some((alias) => sameClaudeBridgeId(alias, id)))) return undefined;
+      if (!CLAUDE_BRIDGE_ID.test(id)) return undefined;
+      // Cloud-only Code sessions have no local_* metadata or CLI transcript. Save the
+      // actual focused identity without guessing state, project or activity timestamps.
+      const title = normalizedTitle(window.title);
+      return {
+        agent: "claude",
+        sessionId: id,
+        host: "app",
+        title: /^(?:Claude(?: Code)?)?$/i.test(title) ? id : title,
+        cwd: "",
+        summary: "",
+        transcriptPath: "",
+        locator: {},
+        status: "unknown",
+        attention: null,
+        subscribed: false,
+        handledAt: null,
+        startedAt: 0,
+        updatedAt: 0,
+      };
     }
     // A known non-conversation document (home, settings, ordinary Claude chat) must not match by title.
     if (window.url) return undefined;

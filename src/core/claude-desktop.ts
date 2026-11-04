@@ -5,7 +5,19 @@ import { Session } from "./types";
 
 export const CLAUDE_BUNDLE = "com.anthropic.claudefordesktop";
 export const CLAUDE_LOCAL_ID = /^local_[A-Za-z0-9-]{1,64}$/;
-const CLAUDE_BRIDGE_ID = /^(?:cse|session)_([A-Za-z0-9-]{1,128})$/;
+export const CLAUDE_BRIDGE_ID = /^(?:cse|session)_([A-Za-z0-9-]{1,128})$/;
+
+/** A window identity is enough to save/jump, but does not provide remote execution state. */
+export function isClaudeCloudOnly(session: Session): boolean {
+  return (
+    session.agent === "claude" &&
+    session.host === "app" &&
+    CLAUDE_BRIDGE_ID.test(session.sessionId) &&
+    !session.locator.claudeDesktopId &&
+    !session.transcriptPath &&
+    !session.state
+  );
+}
 
 export interface ClaudeDesktopSession {
   sessionId: string;

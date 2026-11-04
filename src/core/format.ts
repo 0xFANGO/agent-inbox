@@ -1,5 +1,6 @@
 import { Translator } from "./i18n";
 import { Host, Session } from "./types";
+import { isClaudeCloudOnly } from "./claude-desktop";
 
 function hhmm(ts: number): string {
   const d = new Date(ts);
@@ -13,6 +14,7 @@ function startOfDay(ts: number): number {
 }
 
 export function relativeTime(ts: number, t: Translator, now = Date.now()): string {
+  if (!ts) return "—";
   const diff = Math.max(0, now - ts);
   const min = Math.floor(diff / 60000);
   if (min < 1) return t("time.justNow");
@@ -25,11 +27,12 @@ export function relativeTime(ts: number, t: Translator, now = Date.now()): strin
 
 /** Running rows show when they started ("14:02 起"); others show how long ago they changed. */
 export function rowTime(s: Pick<Session, "status" | "startedAt" | "updatedAt">, t: Translator, now = Date.now()): string {
-  if (s.status === "running") return t("time.since", { t: hhmm(s.startedAt) });
+  if (s.status === "running" && s.startedAt) return t("time.since", { t: hhmm(s.startedAt) });
   return relativeTime(s.updatedAt, t, now);
 }
 
 export function absoluteTime(ts: number, t: Translator, now = Date.now()): string {
+  if (!ts) return "—";
   if (ts >= startOfDay(now)) return t("time.today", { t: hhmm(ts) });
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${hhmm(ts)}`;
@@ -50,6 +53,7 @@ export function agentHostLabel(agent: string, host: Host, t: Translator): string
 }
 
 export function statusLabel(session: Session, t: Translator): string {
+  if (isClaudeCloudOnly(session)) return t("status.cloudUnavailable");
   if (session.status === "running") return t("section.running");
   if (session.status === "done") return t("section.done");
   if (session.status === "needs_input")

@@ -3,6 +3,7 @@ import { captureAfterRaycast, sessionForForeground } from "../core/foreground";
 import { FocusAccessError } from "../core/focused-window";
 import { scanHistory } from "../core/history";
 import { mergeSessions } from "../core/merge";
+import { isClaudeCloudOnly } from "../core/claude-desktop";
 import { locale } from "./env";
 import { allSessions, store } from "./sessions";
 
@@ -30,7 +31,9 @@ export async function subscribeCurrent() {
   const title = session.title || session.sessionId;
   try {
     await store.subscribeEntry(session, { focused: true });
-    await showHUD(t(session.subscribed ? "hud.alreadySubscribed" : "hud.subscribed", { title }));
+    await showHUD(
+      t(isClaudeCloudOnly(session) ? "hud.cloudSubscribed" : session.subscribed ? "hud.alreadySubscribed" : "hud.subscribed", { title }),
+    );
   } catch (error) {
     await showHUD(`${t("toast.error")}: ${String((error as Error).message ?? error)}`);
   }

@@ -7,6 +7,7 @@ import { activateBundle } from "../terminal";
 import { copyToClipboard, jumpToCli, openUrl } from "../jump";
 import {
   CLAUDE_BUNDLE,
+  CLAUDE_BRIDGE_ID,
   CLAUDE_LOCAL_ID,
   enrichClaudeSessions,
   findClaudeDesktopSession,
@@ -173,11 +174,11 @@ export const claudeAdapter: Adapter = {
   id: "claude",
   source: {
     transcript: claudeTranscript,
-    locateTranscript: async (session) =>
-      findTranscript(
-        CLAUDE_PROJECTS,
-        findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions())?.cliSessionId || session.sessionId,
-      ),
+    locateTranscript: async (session) => {
+      const local = findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions());
+      if (!local && CLAUDE_BRIDGE_ID.test(session.sessionId)) return undefined;
+      return findTranscript(CLAUDE_PROJECTS, local?.cliSessionId || session.sessionId);
+    },
   },
   name: "Claude Code",
   icon: "claude.svg",
