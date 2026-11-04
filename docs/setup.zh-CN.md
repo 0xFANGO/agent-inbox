@@ -32,7 +32,7 @@ npm run dev
 1. 打开 **All Sessions**，在 **Actions（⌘K）** 中选择 **Connect an Agent**。
 2. 选择 Claude Code 或 Codex，按回车执行接入；面板会显示结果。
 3. Codex 首次接入后，按提示在 Codex 内执行 `/hooks` 确认信任。已运行会话是否加载新 Hook 取决于客户端，可在新会话中验证。
-4. 打开 **All Sessions（全部会话）**，选一个会话并按回车订阅。也可以从目标 Agent 窗口唤出 Raycast，使用首项**Subscribe to Current Conversation**。
+4. 打开 **All Sessions（全部会话）**，选一个会话并按 ⌘↵ 订阅。也可以从目标 Agent 窗口唤出 Raycast，使用 **Actions → Subscribe to Current Conversation**（⌘⇧↵）。
 5. 打开 **Subscriptions（订阅列表）** 查看它。支持监测的会话在需要回答或授权时进入「待输入」，系统通知开启时会提醒；按回车跳回原对话。
 
 首次可以订阅一个已经存在的会话验证列表展示。通知应使用新产生的问题或授权请求验证：首次恢复历史状态不会补发历史通知。

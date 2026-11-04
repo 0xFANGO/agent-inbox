@@ -8,13 +8,15 @@
 
 | Command              | Purpose                                                                                       | Shortcuts                                                                      |
 | -------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **All Sessions**     | Browse all sessions, filter by subscription or status, and subscribe to the current window    | ↵ / ⌘S subscribe or unsubscribe · ⌘↵ jump · ⌘I details · ⌘R refresh            |
-| **Subscriptions**    | Show subscribed, unhandled sessions in Waiting for You, Subscribed, and Completed sections    | ↵ jump · ⌘D mark handled · ⌘S unsubscribe · ⌘I details · ⌘⇧D archive completed |
+| **All Sessions**     | Browse all sessions, filter by subscription or status, and subscribe to the current window    | ↵ jump · ⌘↵ subscribe or unsubscribe · ⌘I details · ⌘R refresh                 |
+| **Subscriptions**    | Show subscribed, unhandled sessions in Waiting for You, Subscribed, and Completed sections    | ↵ jump · ⌘↵ unsubscribe · ⌘D mark handled · ⌘I details · ⌘⇧D archive completed |
 | **Session Menu Bar** | Show subscriptions and the waiting count; control visibility in Raycast's command preferences | —                                                                              |
 
 Subscription and status filters may overlap in **All Sessions**. The three **Subscriptions** sections are mutually exclusive. Running, turn-ended, and unknown sessions appear under **Subscribed**; a blue dot still indicates running. **Completed** contains only explicitly completed sessions.
 
-Raycast's bottom bar keeps one primary action visible. For a session in **All Sessions**, Return subscribes and ⌘Return jumps. Both appear in Actions (⌘K). Subscribing leaves the list open for further work. **Connect an Agent** and **Open Extension Preferences** are available in the action menu.
+Both session lists use **Return to jump** and **⌘Return to subscribe or unsubscribe**. Raycast's bottom bar shows Jump to Session; Actions (⌘K) shows both shortcuts. Subscribing leaves the list open. **Subscribe to Current Conversation** is available in Actions or with **⌘⇧Return** in All Sessions, so the first selected row is a conversation. **Connect an Agent** and **Open Extension Preferences** remain in Actions.
+
+Rows prioritize the title, project, host, and activity. Open details with **⌘I** for the latest message and full status. Full-text search results retain matching snippets. Subscription section headings show their session counts; the detail sidebar hides redundant row labels to leave more room for titles.
 
 Press **⌫ Delete** with an empty search field to return to the previous view; with text present it deletes text first. Escape follows Raycast's own settings. The connection panel uses native stack navigation.
 
@@ -71,7 +73,7 @@ New names persist separately. Older observations cannot overwrite newer ones. Re
 
 ### Subscribe to the current conversation
 
-Invoke Raycast from the target agent window, open **All Sessions**, and choose **Subscribe to Current Conversation**. Raycast closes before foreground identification:
+Invoke Raycast from the target agent window, open **All Sessions**, and choose **Actions → Subscribe to Current Conversation** or press **⌘⇧Return**. Raycast closes before foreground identification:
 
 - **Claude/Codex desktop:** Prefer native Accessibility document URLs containing session IDs. Otherwise use a unique current-document title; fall back to System Events only if native reads fail. Claude title matching requires a Code page ending in `- Claude Code`. Ordinary chats, home pages, ambiguous titles, or missing window data never trigger a guess based on recent activity.
 - **Terminal/iTerm2/Ghostty 1.4:** Match the selected tab or focused split by tty. tmux also matches the foreground client tty, server socket, and pane. Missing or ambiguous tty data produces an identification failure.

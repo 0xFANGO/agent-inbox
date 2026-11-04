@@ -39,6 +39,7 @@ const SECTIONS: { key: InboxSection; title: "section.needsInput" | "section.subs
 export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }>) {
   const { t, config } = locale();
   const [showDetail, setShowDetail] = useState(false);
+  const [search, setSearch] = useState("");
   const { data, isLoading, revalidate, mutate } = useCachedPromise(activeSessions, [], { keepPreviousData: true });
   useEffect(() => {
     const timer = setInterval(() => {
@@ -58,7 +59,12 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
   }
 
   return (
-    <List isLoading={isLoading} isShowingDetail={showDetail && !empty} searchBarPlaceholder={t("search.placeholder")}>
+    <List
+      isLoading={isLoading}
+      isShowingDetail={showDetail && !empty}
+      searchBarPlaceholder={t("search.placeholder")}
+      onSearchTextChange={setSearch}
+    >
       {empty && connected.data === false ? (
         <List.EmptyView
           icon={Icon.Plug}
@@ -88,7 +94,7 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
         />
       )}
       {SECTIONS.map(({ key, title }) => (
-        <List.Section key={key} title={t(title)}>
+        <List.Section key={key} title={t(title)} subtitle={search.trim() ? undefined : String(groups[key].length)}>
           {groups[key].map((s) => (
             <InboxItem
               key={`${s.agent}:${s.sessionId}`}
@@ -142,34 +148,34 @@ function InboxItem(props: {
   const { session: s, t, config, showDetail } = props;
   const dot = statusDot(s);
   const accessories: List.Item.Accessory[] = [];
-  if (!showDetail) accessories.push({ text: hostTag(s.host) });
   if (dot) accessories.push({ icon: dot, tooltip: statusLabel(s, t) });
-  if (s.status === "ready" || s.status === "unknown") accessories.push({ text: statusLabel(s, t) });
+  if (!showDetail && (s.status === "ready" || s.status === "unknown")) accessories.push({ text: statusLabel(s, t) });
   if (!showDetail) accessories.push({ text: rowTime(s, t) });
 
   return (
     <List.Item
+      id={`${s.agent}:${s.sessionId}`}
       icon={agentIcon(s.agent, !s.subscribed)}
       title={s.title || s.sessionId}
-      subtitle={showDetail ? undefined : projectName(s.cwd)}
+      subtitle={showDetail ? undefined : [projectName(s.cwd), hostTag(s.host)].filter(Boolean).join(" · ")}
       keywords={[projectName(s.cwd), s.summary].filter(Boolean)}
       accessories={accessories}
       detail={<SessionDetail session={s} t={t} />}
       actions={
         <ActionPanel title={s.title}>
           <ActionPanel.Section>
+            {/* Keep the same primary and secondary actions as All Sessions. */}
             <Action title={t("action.jump")} icon={Icon.ArrowNe} onAction={() => jumpBack(s, config, t)} />
+            <Action
+              title={s.subscribed ? t("action.unsubscribe") : t("action.subscribe")}
+              icon={s.subscribed ? Icon.BellDisabled : Icon.Bell}
+              onAction={props.onToggleSubscribe}
+            />
             <Action
               title={t("action.handled")}
               icon={Icon.Checkmark}
               shortcut={{ modifiers: ["cmd"], key: "d" }}
               onAction={props.onHandled}
-            />
-            <Action
-              title={s.subscribed ? t("action.unsubscribe") : t("action.subscribe")}
-              icon={s.subscribed ? Icon.BellDisabled : Icon.Bell}
-              shortcut={Keyboard.Shortcut.Common.Save}
-              onAction={props.onToggleSubscribe}
             />
             <Action
               title={showDetail ? t("action.hideDetail") : t("action.detail")}

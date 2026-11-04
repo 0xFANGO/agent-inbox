@@ -32,7 +32,7 @@ Cloning requires GitHub access while the repository is private. With nvm, run `n
 1. Open **All Sessions**, then its action menu (⌘K), and choose **Connect an Agent**.
 2. Select Claude Code or Codex and press Return. The panel reports progress and the result.
 3. For Codex, approve new hooks with `/hooks` inside Codex. Whether an existing session loads new hooks depends on the client; verify with a new session if needed.
-4. In **All Sessions**, select a conversation and press Return to subscribe. To follow the focused conversation, invoke Raycast from the agent window and choose **Subscribe to Current Conversation**.
+4. In **All Sessions**, select a conversation and press ⌘Return to subscribe. To follow the focused conversation, invoke Raycast from the agent window and choose **Actions → Subscribe to Current Conversation** (⌘⇧Return).
 5. Open **Subscriptions**. Monitored sessions enter **Waiting for You** when an answer or permission is needed. With notifications enabled, new requests trigger an alert. Press Return to jump back.
 
 Start by subscribing to an existing session to check the list. Test alerts with a new question or permission request: recovering historical state does not send old notifications.

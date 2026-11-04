@@ -4,6 +4,12 @@
 
 验证日期：2026-11-04（Asia/Shanghai）。环境：macOS、Node.js 22.22.2 / 24.22.1 / 26.13.0、npm 11.19.1、系统 SQLite 3.51.0。
 
+## 会话列表快捷键与展示
+
+- `npm run check` 通过：150 项测试、TypeScript、ESLint、Prettier、CLI 打包及 Raycast 构建；`npm run lint` 也通过，包含商店截图 metadata 校验。
+- 在原生 Raycast 中使用隔离的演示数据，验证回车将当前会话交给跳转入口且不改订阅，Command-Return 切换订阅；订阅看板取消订阅后立即移除该行并更新分区数量。测试仅记录跳转目标，没有打开真实对话，不能替代下方尚待完成的集成验收。
+- 检查深浅主题下的默认焦点、操作菜单快捷键、列表信息密度与详情模式。三张商店截图使用同一深色主题和背景、2000 × 1250 PNG 及演示会话，完成后恢复原 Raycast 主题、偏好和开发版本。
+
 ## 英文界面与原生偏好设置
 
 - `npm run check`：150 / 150 项测试通过，类型、ESLint、Prettier、CLI 和 3 个 Raycast 命令构建通过。
