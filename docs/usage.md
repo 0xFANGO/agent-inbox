@@ -25,7 +25,7 @@ Press **⌫ Delete** with an empty search field to return to the previous view; 
 
 Default search covers titles, projects, and session IDs. It does **not** automatically load or index full conversations. Choose **Set Up Full-Text Search** below the search results, or **Open Extension Preferences**, then enable **Full-Text Search**. The native preference explains what will be read and stored. Reopen **All Sessions** after changing it. Turning it off stops indexing and content queries; the existing index remains on disk and is no longer updated.
 
-The index includes user and agent messages, with short Chinese terms, case normalization, and multiple keywords supported. Tool output, reasoning, and system-injected content are excluded. The initial build streams local files; subsequent refreshes reindex only changed file sizes or modification times. Queries use local SQLite and never upload conversations. Title search remains available while indexing. Leaving or refreshing the list cancels pending reads safely.
+The index includes user and agent messages, with short Chinese terms, case normalization, and multiple keywords supported. Tool output, reasoning, and system-injected content are excluded. The initial build streams local files; subsequent refreshes reindex only changed file sizes or modification times. Queries use local SQLite and never upload conversations. Title search remains available while indexing. Refreshing the list queues the latest data without interrupting indexing. Leaving the list or disabling full-text search cancels pending reads.
 
 A local sample on 2026-11-04 contained 237 files and about 1.39 GB of records: the first index took about 4.38 seconds, occupied 17.9 MB, and peaked at roughly 308 MB process memory. A warm refresh took about 44 ms and queries about 3–9 ms, plus 180 ms input debounce. These are measurements on one machine, not guarantees. The index lives at `~/.sessions/cache/conversation-search.sqlite`. Cloud-only content without local records cannot be searched.
 
@@ -83,7 +83,7 @@ Codex preserves native window titles when Electron exposes a generic page title,
 
 Claude metadata maps `bridgeSessionIds` to `local_*` and CLI IDs, accepting older strings and newer arrays. Same-suffix `session_*` and `cse_*` IDs share the mapping; ambiguous mappings are rejected. Without local records, an explicit cloud Code session ID can still be subscribed to and reopened. A cloud icon identifies it in the lists and menu bar. The detail view explains that input reminders are unavailable. Unknown activity times are omitted from rows; subscription time is never used as activity.
 
-CLI current-window matching requires installed hooks to collect tty/tmux locators. Historical transcripts usually lack these, so select those sessions manually.
+CLI current-window matching requires installed hooks to collect tty/tmux locators and the agent process identity. After reconnecting hooks, trigger a new agent event or start a new session to refresh older locators. Historical transcripts usually lack these, so select those sessions manually.
 
 Current-window subscription and return to the correct Codex desktop conversation were verified by the user; see the [test record](../TESTING.md) for the remaining coverage. When permissions or terminal interfaces are unavailable, use manual selection.
 
