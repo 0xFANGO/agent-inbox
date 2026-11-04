@@ -3,30 +3,33 @@
 
 ## Description
 
-Agent Inbox is a macOS extension for following existing Claude Code and Codex conversations from Raycast. It provides one opt-in inbox across desktop and terminal sessions, with navigation back to the conversation that needs attention.
+Add **Agent Inbox**, a Raycast extension for macOS that brings existing Claude Code and Codex conversations into one inbox. Developers can subscribe to selected sessions, see which conversations need input, and return to the corresponding desktop conversation, terminal tab, or tmux pane.
 
-The extension adds four commands:
+| Command                           | Purpose                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| Subscribe to Current Conversation | Subscribe to the focused conversation from Raycast search or a dedicated hotkey.              |
+| All Sessions                      | Find conversations by title, project, or session ID; optionally search local message content. |
+| Subscriptions                     | View subscribed sessions, jump back with Return, and mark requests handled.                   |
+| Session Menu Bar                  | View subscribed sessions and the number waiting for input.                                    |
 
-- **Subscribe to Current Conversation** follows the focused conversation and supports a dedicated global hotkey.
-- **All Sessions** searches local history by title, project, or session ID. Optional full-text search is disabled by default.
-- **Subscriptions** groups conversations by state. Return jumps back, Command-Return toggles a subscription, and Command-D marks a request handled.
-- **Session Menu Bar** shows subscribed sessions and the waiting count.
+### Setup and data handling
 
-Users connect Claude Code or Codex from the action panel. Connecting installs local hooks and a user LaunchAgent, backing up configuration before editing it. Conversation files are read-only, state stays on the Mac, and the extension does not upload conversations or approve agent requests. Setup, permissions, and removal instructions are included in the README and setup guide.
+The extension requires an existing Claude Code or Codex installation. **Connect an Agent** in the action panel installs local hooks and a user LaunchAgent, with backups of modified configuration. The setup guide documents permissions, data locations, and removal steps.
 
-The extension requires an existing Claude Code or Codex setup. Clickable macOS notifications additionally require `terminal-notifier`. Cloud-only Claude conversations are identified by a cloud icon and support navigation without local status monitoring.
+Conversation files are read-only. Session state and optional full-text indexes stay on the Mac; full-text indexing is disabled by default. Agent Inbox does not upload conversations or approve agent requests.
+
+Clickable system notifications use `terminal-notifier`. Claude cloud-only conversations support subscription and navigation, but cannot provide status monitoring without local hooks or transcripts.
 
 ### Validation
 
-- `npm ci`, `npm run check`, and `npm run lint` passed in the prepared `extensions/agent-inbox` checkout; all 152 tests passed without failures or skips.
-- The distribution build was exercised in native Raycast. Subscription search, cloud indicators, mark-handled behavior, and unsubscribe behavior were verified.
-- The user verified focused subscription and return navigation in Codex desktop and their usual terminal.
-- A real Claude Code question and generic reminder produced one pending request; answering cleared it and returned the session to ready.
-- **Pending live coverage:** notification delivery and notification-click navigation, because macOS notification permission remains disabled. Terminal, iTerm2, Ghostty, and tmux have not each been independently verified by name. These are not claimed as passed.
+- Fresh installation, `npm run check`, and `npm run lint` passed in `extensions/agent-inbox`, including 152 tests with no failures or skips.
+- The distribution build was tested in native Raycast: focused subscription, list filtering, cloud indicators, mark-handled behavior, and unsubscribe behavior.
+- Manual checks covered Codex desktop navigation, return to the original terminal tab, and a real Claude Code question-to-answer lifecycle.
+- **Pending:** system notification delivery and notification-click navigation. Terminal applications and tmux have not each received separate live verification; the detailed coverage is recorded in `TESTING.md`.
 
 ## Screencast
 
-These screenshots use fictional sessions and a consistent theme and background. Each image is a 2000 × 1250 PNG. They were captured from the native Raycast window and framed on a uniform background; Capture Window did not export on the validation machine.
+Three 2000 × 1250 PNG screenshots show the subscription inbox, session browser, and conversation details using fictional sessions and a consistent theme.
 
 ![Subscriptions](../metadata/agent-inbox-1.png)
 

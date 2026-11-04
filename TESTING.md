@@ -31,6 +31,6 @@ Release preparation checked on 2026-11-04 (Asia/Shanghai). Automated checks, nat
 
 Three screenshots use fictional sessions, a consistent dark theme and background, and 2000 × 1250 PNG files. They are native window captures framed on a uniform background; Raycast Capture Window did not export on this installation.
 
-The standalone repository's `npm run prepare:store` creates a local allowlisted source directory under `dist/store/agent-inbox`. It excludes development skills, internal investigation notes, installed dependencies, Git data, and build output, and replaces private issue/security URLs with the public upstream endpoints. It does not publish anything.
+The submission is prepared directly under `extensions/agent-inbox` in a Raycast extensions checkout. Only extension source, tests, runtime assets, screenshots, and supporting documentation are included; local development skills, internal investigation notes, dependencies, and generated validation files are excluded from the commit. Repository and support links target the public upstream repository, and the submission follows its security-reporting policy.
 
-Ran a fresh `npm ci`, `npm run check`, `npm run lint`, and `npm run bundle` in the exported source directory. All passed. Verified local documentation/media links, four bundled commands, the helper CLI, and the license. Removed installed dependencies and generated validation files from the final submission directory.
+The prepared source passed a fresh `npm ci`, `npm run check`, and `npm run lint`. The installable bundle was also verified with `npm run bundle`. Local documentation/media links, four bundled commands, the helper CLI, and the license were checked. Store publication has not taken place.

@@ -31,6 +31,6 @@
 
 三张截图使用虚构会话、统一暗色主题与背景，尺寸为 2000 × 1250 PNG。素材由原生窗口截图加统一背景组成；本机 Raycast Capture Window 未成功导出。
 
-独立项目仓库中的 `npm run prepare:store` 按明确文件清单生成 `dist/store/agent-inbox` 本地源码目录，排除开发技能、内部调查笔记、已安装依赖、Git 数据和构建产物，并把私有问题反馈/安全链接替换为官方公开入口。该命令不执行发布。
+提交内容直接放在 Raycast extensions 工作副本的 `extensions/agent-inbox` 目录。提交只包含扩展源码、测试、运行时素材、截图及配套文档；本地开发技能、内部调查笔记、依赖和验收生成文件均不纳入提交。仓库与支持链接指向官方公开仓库，安全报告遵循官方政策。
 
-在导出的源码目录中全新执行 `npm ci`、`npm run check`、`npm run lint` 和 `npm run bundle`，均通过。已核对本地文档/图片链接、四个命令、辅助 CLI 和许可证；最终提交目录已移除安装的依赖与验收生成文件。
+准备好的源码全新执行 `npm ci`、`npm run check` 和 `npm run lint`，均通过；另已通过 `npm run bundle` 核对可安装包。本地文档/图片链接、四个命令、辅助 CLI 和许可证均已检查。目前尚未在商店发布。
