@@ -101,6 +101,9 @@ export interface Session {
   sessionId: string;
   host: Host;
   title: string;
+  /** Observation time for independently synchronized metadata; not conversation activity. */
+  titleObservedAt?: number;
+  titleSource?: string;
   cwd: string;
   status: Status;
   attention: Attention | null;
@@ -114,6 +117,14 @@ export interface Session {
   transcriptPath: string;
   state?: SessionState;
   revision?: number;
+}
+
+export interface SessionTitle {
+  agent: AgentId;
+  sessionId: string;
+  title: string;
+  observedAt: number;
+  source: string;
 }
 
 /** A transcript found on disk by the history scan (not in the hook database). */

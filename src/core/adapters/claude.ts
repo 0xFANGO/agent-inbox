@@ -1,4 +1,5 @@
 import { findTranscript } from "../sources/locate";
+import { readClaudeTitles } from "../sources/claude-titles";
 import { claudeTranscript, questionIds } from "../sources/transcripts";
 import { existsSync, readFileSync } from "node:fs";
 import { CLAUDE_DIR, CLAUDE_SETTINGS, CLAUDE_PROJECTS } from "../paths";
@@ -173,6 +174,7 @@ export async function jumpClaude(session: Session, config: Config, navigation = 
 export const claudeAdapter: Adapter = {
   id: "claude",
   source: {
+    titles: readClaudeTitles,
     transcript: claudeTranscript,
     locateTranscript: async (session) => {
       const local = findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions());

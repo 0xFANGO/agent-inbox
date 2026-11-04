@@ -18,7 +18,7 @@ const web = (url: string, title: string, children: Element[] = []): Element => (
 });
 const window = (children: Element[]): Element => ({ AXRole: "AXWindow", AXTitle: "Claude", AXChildren: array(children) });
 
-function runProbe(app: Element, running = true, bundle = CLAUDE_BUNDLE): unknown {
+function runProbe(app: Element, running = true, bundle = CLAUDE_BUNDLE, mode: "focused" | "windows" = "focused"): unknown {
   const bridge = Object.assign((value: unknown) => value, {
     NSRunningApplication: { runningApplicationsWithBundleIdentifier: () => array(running ? [{ processIdentifier: 123 }] : []) },
     AXUIElementCreateApplication: () => app,
@@ -33,7 +33,7 @@ function runProbe(app: Element, running = true, bundle = CLAUDE_BUNDLE): unknown
     CFURLGetString: (value: { value: string }) => value.value,
   });
   return JSON.parse(
-    runInNewContext(nativeFocusScript(bundle), {
+    runInNewContext(nativeFocusScript(bundle, mode), {
       $: bridge,
       Ref: () => [],
       ObjC: {
@@ -68,6 +68,25 @@ test("native AX never substitutes a background window or starts an absent applic
   const background = window([web("https://claude.ai/epitaxy/local_old", "Old")]);
   assert.equal(runProbe({ AXWindows: array([background]) }), null);
   assert.equal(runProbe({ AXFocusedWindow: background }, false), null);
+});
+
+test("title sampling reads only outer documents of open windows without changing focus", () => {
+  const first = window([
+    web("file:///Claude.app/index.html", ""),
+    web("https://claude.ai/epitaxy/session_one", "One - Claude Code", [web("https://claude.ai/epitaxy/session_wrong", "Nested artifact")]),
+  ]);
+  const second = window([web("https://claude.ai/epitaxy/session_two", "Two - Claude Code")]);
+  const app = { AXWindows: array([first, second]) };
+  assert.deepEqual(runProbe(app, true, CLAUDE_BUNDLE, "windows"), [
+    { title: "One - Claude Code", url: "https://claude.ai/epitaxy/session_one" },
+    { title: "Two - Claude Code", url: "https://claude.ai/epitaxy/session_two" },
+  ]);
+  assert.equal(runProbe(app), null, "the same app still has no focused window");
+  assert.deepEqual(runProbe(app, false, CLAUDE_BUNDLE, "windows"), []);
+  assert.equal(
+    (runProbe({ AXWindows: array(Array.from({ length: 30 }, () => first)) }, true, CLAUDE_BUNDLE, "windows") as unknown[]).length,
+    12,
+  );
 });
 
 test("native AX reports the accessibility denial instead of guessing a window", () => {

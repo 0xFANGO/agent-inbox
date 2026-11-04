@@ -5,8 +5,10 @@ import { FocusedWindow, readFocusedWindow } from "./focused-window";
 import { fromHistory } from "./merge";
 import { bundleFor, frontTty, tmuxClients, TERMINAL_BUNDLES } from "./terminal";
 import { Session } from "./types";
+import { claudeWindowIdentity } from "./claude-window";
 
 export interface ForegroundContext {
+  capturedAt?: number;
   bundleId?: string;
   window?: FocusedWindow;
   tty?: string;
@@ -14,7 +16,9 @@ export interface ForegroundContext {
 
 /** Capture focus before reading history or the database, which may take time. */
 export async function captureForeground(bundleId: string | undefined): Promise<ForegroundContext> {
-  if (bundleId === CLAUDE_BUNDLE || bundleId === CODEX_APP_BUNDLE) return { bundleId, window: await readFocusedWindow(bundleId) };
+  const capturedAt = Date.now();
+  if (bundleId === CLAUDE_BUNDLE || bundleId === CODEX_APP_BUNDLE)
+    return { bundleId, capturedAt, window: await readFocusedWindow(bundleId) };
   return { bundleId, tty: bundleId ? await frontTty(bundleId) : undefined };
 }
 
@@ -42,18 +46,6 @@ export async function captureAfterRaycast(actions: {
 
 function unique(sessions: Session[]): Session | undefined {
   return sessions.length === 1 ? sessions[0] : undefined;
-}
-
-function documentId(bundleId: string, raw: string): string | undefined {
-  try {
-    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    if (bundleId === CLAUDE_BUNDLE && url.protocol === "https:" && url.hostname === "claude.ai" && !url.username && !url.password) {
-      return url.pathname.match(/^\/(?:epitaxy|code)\/((?:local_|session_|cse_)[A-Za-z0-9-]{1,128})\/?$/)?.[1];
-    }
-  } catch {
-    // Missing or unsupported document URL.
-  }
-  return undefined;
 }
 
 const UUID = "([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})";
@@ -149,10 +141,9 @@ export async function sessionForForeground(
         locator: { ...existing?.locator, claudeDesktopId: r.sessionId },
       });
     }
-    const id = documentId(bundleId, window.url);
+    const identity = claudeWindowIdentity(window);
+    const id = identity?.sessionId;
     if (id) {
-      const otherId = window.documentUrl ? documentId(bundleId, window.documentUrl) : undefined;
-      if (otherId && otherId !== id && !sameClaudeBridgeId(otherId, id)) return undefined;
       const localId = findClaudeDesktopSession(id, desktop)?.sessionId;
       const matches = candidates.filter(
         (s) =>
@@ -161,18 +152,21 @@ export async function sessionForForeground(
           (localId && s.locator.claudeDesktopId === localId) ||
           sameClaudeBridgeId(s.sessionId, id),
       );
-      if (matches.length) return unique(matches);
+      if (matches.length) {
+        const match = unique(matches);
+        return match && identity.title ? { ...match, title: identity.title, titleObservedAt: context.capturedAt ?? Date.now() } : match;
+      }
       // Preserve ambiguous/archived local mappings; don't manufacture a cloud duplicate.
       if (desktop.some((r) => r.sessionId === id || r.bridgeSessionIds?.some((alias) => sameClaudeBridgeId(alias, id)))) return undefined;
       if (!CLAUDE_BRIDGE_ID.test(id)) return undefined;
       // Cloud-only Code sessions have no local_* metadata or CLI transcript. Save the
       // actual focused identity without guessing state, project or activity timestamps.
-      const title = normalizedTitle(window.title);
       return {
         agent: "claude",
         sessionId: id,
         host: "app",
-        title: /^(?:Claude(?: Code)?)?$/i.test(title) ? id : title,
+        title: identity.title || id,
+        titleObservedAt: context.capturedAt ?? Date.now(),
         cwd: "",
         summary: "",
         transcriptPath: "",

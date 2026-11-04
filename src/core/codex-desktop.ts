@@ -2,7 +2,15 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { run } from "./exec";
 import { CODEX_DIR } from "./paths";
-import { HistoryEntry } from "./types";
+import { HistoryEntry, Session, SessionTitle } from "./types";
+
+export async function readCodexTitles(sessions: Session[], root = CODEX_DIR, now = Date.now): Promise<SessionTitle[]> {
+  const observedAt = now();
+  const known = new Set(sessions.map((session) => session.sessionId));
+  return (await readCodexDesktopSessions(root))
+    .filter((entry) => known.has(entry.sessionId))
+    .map((entry) => ({ agent: "codex", sessionId: entry.sessionId, title: entry.title, observedAt, source: "codex-catalog" }));
+}
 
 /** A renamed conversation retains its original prompt in transcripts; show its current catalog name. */
 export function enrichCodexTitles<T extends HistoryEntry>(sessions: T[], catalog: HistoryEntry[]): T[] {

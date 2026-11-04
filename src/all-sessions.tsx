@@ -3,7 +3,6 @@ import { Action, ActionPanel, Color, Icon, Keyboard, List, showToast, Toast } fr
 import { useCachedPromise } from "@raycast/utils";
 import { useEffect, useMemo, useState } from "react";
 import { hostTag, rowTime } from "./core/format";
-import { enrichCodexTitles, readCodexDesktopSessions } from "./core/codex-desktop";
 import { isClaudeCloudOnly } from "./core/claude-desktop";
 import { scanHistory } from "./core/history";
 import { Translator } from "./core/i18n";
@@ -15,7 +14,7 @@ import { Config, Session } from "./core/types";
 import { agentIcon, statusDot } from "./components/icons";
 import { SessionDetail } from "./components/SessionDetail";
 import { locale } from "./lib/env";
-import { allSessions, jumpBack, store } from "./lib/sessions";
+import { allSessions, jumpBack, store, refreshSessionTitles } from "./lib/sessions";
 import { subscribeCurrent } from "./lib/subscribe-current";
 import Settings from "./settings";
 import { useContentSearch } from "./lib/content-search";
@@ -38,12 +37,11 @@ export default function AllSessions() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data, isLoading, mutate, revalidate } = useCachedPromise(
     async () => {
-      const [rows, history, catalog] = await Promise.all([
+      const [rows, history] = await Promise.all([
         allSessions(Number.MAX_SAFE_INTEGER),
         Promise.resolve().then(() => scanHistory({ limit: Number.MAX_SAFE_INTEGER, includeUntitled: true })),
-        readCodexDesktopSessions(),
       ]);
-      return enrichCodexTitles(mergeSessions(rows, history), catalog);
+      return refreshSessionTitles(mergeSessions(rows, history));
     },
     [],
     { keepPreviousData: true },

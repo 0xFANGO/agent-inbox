@@ -9,6 +9,18 @@ export interface FocusedWindow {
   documentUrl?: string;
 }
 
+/** Passive title sampling of already-open Claude windows. Never activates or navigates. */
+export async function readClaudeTitleWindows(execute = osascript): Promise<FocusedWindow[]> {
+  const result = await execute(nativeFocusScript("com.anthropic.claudefordesktop", "windows"), "JavaScript");
+  if (!result.ok) return [];
+  try {
+    const value = JSON.parse(result.stdout);
+    return Array.isArray(value) ? value.filter(validWindow) : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Read the front window's outer document, never sidebar links or conversation contents. */
 export async function readFocusedWindow(bundleId: string, execute = osascript): Promise<FocusedWindow | undefined> {
   const native = await execute(nativeFocusScript(bundleId), "JavaScript");

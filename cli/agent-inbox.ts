@@ -20,6 +20,7 @@ import { captureLocator } from "../src/core/locate";
 import { EventEngine } from "../src/core/engine";
 import { deliverNotifications } from "../src/core/notifications";
 import { TranscriptCollector } from "../src/core/sources/collector";
+import { TitleSynchronizer } from "../src/core/titles";
 import { installCollector } from "../src/core/service";
 import { applyPlan, resolveNode } from "../src/core/install";
 import { LOG_PATH, ROOT } from "../src/core/paths";
@@ -165,6 +166,7 @@ async function list(args: string[]) {
 async function watch(once = false) {
   const store = new Store();
   const collector = new TranscriptCollector(new EventEngine(store, readConfig), allAdapters, log);
+  const titles = new TitleSynchronizer(store, allAdapters);
   let stopping = false;
   const stop = () => {
     stopping = true;
@@ -175,6 +177,7 @@ async function watch(once = false) {
     do {
       try {
         await collector.poll();
+        await titles.refresh(await store.subscribed());
         await deliverNotifications(store, readConfig());
       } catch (error) {
         log(`collector: ${String(error)}`);

@@ -1,17 +1,18 @@
 import { closeMainWindow, showHUD, showToast, Toast } from "@raycast/api";
-import { getAdapter } from "../core/adapters";
+import { allAdapters, getAdapter } from "../core/adapters";
 import { Store } from "../core/db";
 import { enrichClaudeSessions } from "../core/claude-desktop";
-import { enrichCodexTitles, readCodexDesktopSessions } from "../core/codex-desktop";
+import { TitleSynchronizer } from "../core/titles";
 import { Translator } from "../core/i18n";
 import { Config, Session } from "../core/types";
 import { recoverIdleSessionStates } from "../core/transcript-state";
 
 export const store = new Store();
+const titleSync = new TitleSynchronizer(store, allAdapters);
+export const refreshSessionTitles = (sessions: Session[]) => titleSync.refresh(sessions);
 
 export async function activeSessions(): Promise<Session[]> {
-  const rows = recoverIdleSessionStates(enrichClaudeSessions(await store.active()));
-  return rows.some((s) => s.agent === "codex") ? enrichCodexTitles(rows, await readCodexDesktopSessions()) : rows;
+  return recoverIdleSessionStates(await refreshSessionTitles(enrichClaudeSessions(await store.active())));
 }
 
 export async function allSessions(limit = 500): Promise<Session[]> {

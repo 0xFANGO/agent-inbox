@@ -109,3 +109,22 @@ test("saved Claude cloud sessions jump through the cloud deep link rather than a
   assert.deepEqual(result, { ok: true, method: "url" });
   assert.deepEqual(urls, ["claude://code/session_cloud123"]);
 });
+
+test("identifying an already-subscribed cloud window refreshes its name without changing its identity", async (t) => {
+  const store = new Store(join(tempDir(t), "db.sqlite"));
+  const original = (await sessionForForeground({ ...context, capturedAt: 100 }, [], noIO))!;
+  await store.subscribeEntry(original, { focused: true });
+  const renamed = (await sessionForForeground(
+    { ...context, capturedAt: 200, window: { ...context.window, title: "Renamed - Claude Code" } },
+    await store.all(),
+    noIO,
+  ))!;
+  assert.equal(renamed.sessionId, original.sessionId);
+  assert.equal(renamed.title, "Renamed");
+  await store.subscribeEntry(renamed, { focused: true });
+  const saved = (await store.get("claude", original.sessionId))!;
+  assert.equal(saved.title, "Renamed");
+  assert.equal(saved.updatedAt, 0);
+  assert.equal(saved.status, "unknown");
+  assert.equal((await store.all()).length, 1);
+});

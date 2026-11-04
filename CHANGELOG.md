@@ -1,5 +1,12 @@
 # Agent Inbox Changelog
 
+## [Session Title Synchronization] - 2026-11-04
+
+- 标题作为独立元数据持久化；列表、菜单栏与通知采用同一份按 ID 关联的当前名称，旧读取结果不能覆盖新名称。
+- 补齐 Claude CLI 的 custom-title.json 和旧 transcript 改名记录；继续读取 Claude 桌面 metadata 与 Codex 当前会话目录。
+- Claude Cloud 已打开窗口的标题可被动同步；窗口不可访问、关闭或来源暂缺时保留旧名称，不推断远端运行状态。
+- 改名保留订阅、已处理、运行状态和活动时间，不产生额外通知；已排队通知使用最新标题。
+
 ## [Subscription Sections and Settings] - 2026-11-04
 
 - 订阅列表与菜单栏统一为待输入、已订阅、已完成三个分区，移除运行中和其他会话分区。
