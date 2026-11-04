@@ -1,6 +1,6 @@
 # 参与贡献
 
-Agent Inbox 关注已有 Agent 会话的发现、订阅、状态、提醒和跳回。新来源或新通知渠道请先用 Issue 说明使用场景与数据来源，再实现对应接口。项目当前的兼容边界见 [README](README.md#支持范围)。
+Agent Inbox 关注已有 Agent 会话的发现、订阅、状态、提醒和跳回。新来源或新通知渠道请先用 Issue 说明使用场景与数据来源，再实现对应接口。项目当前的兼容边界见 [中文版 README](README.zh-CN.md#支持范围)。
 
 ## 开发环境
 
@@ -22,6 +22,7 @@ npm run dev
 - 修改状态识别或跳转逻辑时，提供可复现的输入样本和回归测试。样本应使用虚构的会话 ID、路径与对话内容。
 - 不按最近活动时间猜测目标会话，不用超时或普通回合结束推断任务完成。
 - 修改用户行为时同步更新 [使用指南](docs/usage.md) 与 [CHANGELOG](CHANGELOG.md)。
+- `README.md` 是默认英文说明，`README.zh-CN.md` 是对应中文版。修改功能、安装步骤或支持范围时同步两份 README，保留顶部语言切换链接。
 - `assets/agent-inbox.mjs` 为受版本控制的生成文件；修改核心或 CLI 后运行 `npm run build:cli`，不要手改 bundle。
 - 新来源、状态契约和通知渠道的扩展方式见 [接口说明](docs/integrations.md)。
 

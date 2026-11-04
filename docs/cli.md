@@ -92,4 +92,4 @@ Demo session: needs_input
 | `AGENT_INBOX_CLAUDE_DESKTOP_ROOT` | `~/Library/Application Support/Claude/claude-code-sessions` | Claude 桌面 metadata 根目录                 |
 | `AGENT_INBOX_SQLITE`              | 优先系统 `/usr/bin/sqlite3`，随后 Homebrew 路径 / PATH      | SQLite 可执行文件；无效路径会产生数据库错误 |
 
-语言与恢复终端以 Raycast 扩展偏好为准，打开命令时同步到 `config.json`；通知、菜单栏与全文搜索通过设置面板修改。`config.json` 读取失败时采用默认配置；当前不对手写字段做完整 schema 校验，建议使用界面设置。默认值见 [README](../README.md#数据与设置)。
+语言与恢复终端以 Raycast 扩展偏好为准，打开命令时同步到 `config.json`；通知、菜单栏与全文搜索通过设置面板修改。`config.json` 读取失败时采用默认配置；当前不对手写字段做完整 schema 校验，建议使用界面设置。默认值见 [中文版 README](../README.zh-CN.md#数据与设置)。

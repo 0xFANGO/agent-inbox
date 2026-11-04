@@ -1,29 +1,34 @@
 # Agent Inbox
 
-订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。
+Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.
 
-一个 macOS Raycast 扩展，适合同时处理多个 AI 编程会话的开发者。把关心的会话加入订阅列表，在 Agent 等待回答或授权时收到提醒，再回到对应的桌面对话或终端继续工作。
+[![Platform: Raycast](docs/images/raycast-platform.svg)](https://www.raycast.com/)
+[![OS: macOS](docs/images/macos-platform.svg)](https://www.apple.com/macos/)
 
-使用流程示意：
+**English** | [简体中文](README.zh-CN.md)
+
+A Raycast extension for macOS, built for developers working across multiple AI coding sessions. Subscribe to the conversations you care about, get notified when an agent needs an answer or permission, and return to the right desktop conversation or terminal.
+
+Workflow overview:
 
 ```mermaid
 flowchart LR
-    A[Claude Code / Codex] --> B[订阅关心的会话]
-    B --> C[待输入提醒]
-    C --> D[跳回原对话]
-    D --> E[处理后继续工作]
+    A[Claude Code / Codex] --> B[Subscribe to a session]
+    B --> C[Get an input request]
+    C --> D[Jump back to the conversation]
+    D --> E[Respond and keep working]
 ```
 
-- **找到会话**：搜索标题、项目和会话 ID，订阅历史会话或当前窗口对话。
-- **知道谁在等你**：订阅列表和菜单栏显示状态，系统通知提醒需要处理的请求。
-- **回到工作上下文**：定位桌面对话、终端标签或 tmux pane；无法精确定位时提示恢复方式。
-- **按需搜索正文**：默认不建全文索引；确认开启后在本机检索用户与 Agent 的消息。
+- **Find your sessions.** Search by title, project, or session ID. Subscribe to a past conversation or the one in your current window.
+- **See what needs you.** Check session status in the subscription list and menu bar, with system notifications for requests that need attention.
+- **Return to the right context.** Focus a desktop conversation, terminal tab, or tmux pane. If an exact match is unavailable, get a recovery option.
+- **Search conversations when you choose.** Full-text indexing is off by default. Enable it to search user and agent messages locally.
 
-## 快速开始
+## Quick start
 
-需要 **macOS、Raycast、Node.js ≥ 22.22.2、npm**，以及已使用的 Claude Code 或 Codex。可点击通知另需 `terminal-notifier`。
+Requires **macOS, Raycast, Node.js ≥ 22.22.2, npm**, and an existing Claude Code or Codex setup. Clickable notifications also require `terminal-notifier`.
 
-当前提供源码安装；仓库尚未公开时需要 GitHub 访问权限。目前没有 GitHub Release 下载。
+Install from source. While the repository is private, cloning requires GitHub access. No GitHub Release download is available yet.
 
 ```sh
 git clone https://github.com/0xFANGO/agent-inbox.git
@@ -32,65 +37,71 @@ npm ci
 npm run dev
 ```
 
-1. 在 Raycast 搜索 **Agent Inbox**，打开 **设置 → 接入 Agent**，接入 Claude Code 或 Codex。Codex 首次需在客户端执行 `/hooks` 确认。
-2. 打开 **全部会话**，选中一个会话，按回车订阅。
-3. 打开 **订阅列表**，查看状态并按回车跳回。支持监测的会话在产生新待处理请求时会提醒；首次恢复历史状态不补发通知。
+1. Search for **Agent Inbox** in Raycast. Open **设置 (Settings) → 接入 Agent (Connect an Agent)** and connect Claude Code or Codex. For Codex, approve the new hooks with `/hooks` in the client.
+2. Open **全部会话 (All Sessions)**, select a session, and press Return to subscribe.
+3. Open **订阅列表 (Subscriptions)** to see its status and press Return to jump back. Sessions with monitoring support notify you about new requests; importing historical state does not send old notifications.
 
-接入会安装本地 Hook 和用户级后台采集器，修改前备份已有配置。权限、可点击通知、数据位置和卸载步骤见 [安装指南](docs/setup.md)。
+The interface defaults to Chinese. To use English, open **设置 (Settings) → 语言 / Language** and choose **English** in the extension preferences. Raycast's root command names currently remain Chinese; their English meanings are shown above.
 
-## 日常使用
+Connecting an agent installs local hooks and a user background collector, backing up existing configuration before editing it. See the [setup guide (简体中文)](docs/setup.md) for permissions, clickable notifications, data locations, and removal instructions.
 
-| Raycast 命令 | 用途                                       | 常用操作                         |
-| ------------ | ------------------------------------------ | -------------------------------- |
-| 全部会话     | 搜索与筛选会话，订阅当前窗口               | ↵ / ⌘S 订阅 · ⌘↵ 跳回 · ⌘I 详情  |
-| 订阅列表     | 处理关心的会话                             | ↵ 跳回 · ⌘D 已处理 · ⌘S 取消订阅 |
-| 设置         | 接入 Agent，管理语言、终端、全文搜索与通知 | ↵ 打开设置                       |
-| 刷新菜单栏   | 刷新订阅会话与待输入数量                   | 显示开关位于设置                 |
+## Everyday use
 
-**待输入**包括问题、授权，以及需要处理的失败、额度或中断。**本轮结束**表示 Agent 停止了这一轮；只有明确的完成事件才标记为**已完成**。标记已处理会暂时隐藏会话，状态变化或新请求会让它重新出现。
+| Raycast command               | Purpose                                                                | Shortcuts                                      |
+| ----------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
+| 全部会话 · All Sessions       | Search and filter sessions; subscribe to the current window            | ↵ / ⌘S subscribe · ⌘↵ jump back · ⌘I details   |
+| 订阅列表 · Subscriptions      | Act on the sessions you follow                                         | ↵ jump back · ⌘D mark handled · ⌘S unsubscribe |
+| 设置 · Settings               | Manage agents, language, terminal, full-text search, and notifications | ↵ open a setting                               |
+| 刷新菜单栏 · Refresh Menu Bar | Refresh subscribed sessions and the waiting count                      | Toggle visibility in Settings                  |
 
-完整快捷键、状态语义、标题同步和跳转兜底见 [使用指南](docs/usage.md)。
+**Waiting for input** includes questions, permission requests, and failures, quota limits, or interruptions that need attention. **Turn ended** means the agent stopped this turn; **Completed** requires an explicit completion event. Marking a session handled hides it until its state changes or a new request arrives.
 
-## 支持范围
+See the [usage guide (简体中文)](docs/usage.md) for all shortcuts, status rules, title synchronization, and navigation fallbacks.
 
-| 来源                       | 当前能力                                       | 边界                                                                 |
-| -------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
-| Claude Code CLI / 本地桌面 | 历史发现、订阅、Hook 与本地记录状态采集、跳回  | 原窗口定位依赖权限与可用的会话映射                                   |
-| Codex CLI / 桌面           | 历史发现、订阅、Hook 与本地 rollout 采集、跳回 | 客户端数据格式可能变化；当前桌面流程的完整实机验收仍待完成           |
-| Claude Code 纯云端         | 按明确窗口 ID 订阅和跳回，同步已打开窗口的标题 | 无本地记录或 Hook 时显示「云端状态未接入」，没有待输入提醒或正文搜索 |
-| 终端                       | Terminal、iTerm2、Ghostty；支持 tmux 定位      | 精确 Ghostty 定位使用 1.4 的 tty 接口；缺少接口时降级处理            |
+## Compatibility
 
-Agent Inbox 管理你已经打开的会话，不托管或派发任务、不代替用户授权，也不提供跨设备云同步。只有一个会话、很少切换窗口时，直接使用原客户端即可。其他 Agent 和网络通知渠道目前只有扩展接口，尚未内置接入。
+The current platform is **Raycast** and the operating system is **macOS**. Session monitoring relies on local hooks or transcripts; cloud-only sessions have the limits listed below.
 
-## 数据与设置
+| Source                          | Available features                                                                       | Limits                                                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Claude Code CLI / local desktop | History, subscriptions, state collection through hooks and local transcripts, navigation | Exact window matching depends on permissions and available session mappings                               |
+| Codex CLI / desktop             | History, subscriptions, state collection through hooks and local rollouts, navigation    | Client formats may change; full desktop interaction testing is still pending                              |
+| Cloud-only Claude Code          | Subscribe and navigate using an explicit window session ID; sync titles of open windows  | Without local transcripts or hooks, monitoring is unavailable: no input notifications or full-text search |
+| Terminals                       | Terminal, iTerm2, Ghostty, and tmux targeting                                            | Exact Ghostty targeting uses the tty interface in 1.4; missing interfaces fall back to recovery options   |
 
-状态、订阅、配置、通知队列存储在 `~/.sessions/`。会话记录只读；没有会话上传服务。
+Agent Inbox manages conversations you already run. It does not host agents, assign tasks, approve requests, or sync across devices. If you work in one session and rarely switch windows, the original client may be all you need. Extension interfaces exist for other agents and network notification channels, but those integrations are not built in.
 
-| 设置         | 类型 / 默认值                              | 行为                                                        |
-| ------------ | ------------------------------------------ | ----------------------------------------------------------- |
-| 语言         | 中文 / English；默认中文                   | 同时影响界面和通知，在 Raycast 扩展偏好中设置               |
-| 默认终端     | Terminal / iTerm2 / Ghostty；默认 Terminal | 找不到原 CLI 窗口时在此恢复会话                             |
-| 系统通知     | 开关；默认开启                             | 仅提醒已订阅、未处理且仍需用户介入的会话                    |
-| 菜单栏显示   | 开关；默认开启                             | 展示订阅会话与待输入数量                                    |
-| 会话全文搜索 | 开关；默认关闭                             | 确认后在本机索引用户与 Agent 消息；不包含工具输出与思考过程 |
+## Data and preferences
 
-全文索引位于 `~/.sessions/cache/conversation-search.sqlite`。关闭搜索会停止索引与正文检索，已有索引不会自动删除。更多说明见 [搜索与隐私](docs/usage.md#搜索)。
+State, subscriptions, configuration, and the notification queue live in `~/.sessions/`. Agent transcripts are read-only; there is no conversation upload service.
 
-## 开发与贡献
+| Setting              | Values / default                                 | Behavior                                                                                       |
+| -------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Language             | Chinese / English; Chinese by default            | Changes interface and notification language through Raycast extension preferences              |
+| Default terminal     | Terminal / iTerm2 / Ghostty; Terminal by default | Resumes a CLI session when the original window cannot be found                                 |
+| System notifications | On / off; on by default                          | Alerts only for subscribed, unhandled sessions that still need attention                       |
+| Menu bar             | On / off; on by default                          | Shows subscribed sessions and the waiting count                                                |
+| Full-text search     | On / off; off by default                         | Indexes user and agent messages locally after confirmation; excludes tool output and reasoning |
+
+The full-text index is stored at `~/.sessions/cache/conversation-search.sqlite`. Turning search off stops indexing and content queries; it does not delete the existing index. See [search and privacy (简体中文)](docs/usage.md#搜索).
+
+## Development and contributing
 
 ```sh
 npm ci
-npm run check  # 测试、类型、ESLint / Prettier、CLI 与 Raycast 构建
-npm run dev    # 在 Raycast 中加载开发版
+npm run check  # Tests, types, ESLint / Prettier, CLI and Raycast builds
+npm run dev    # Load the development extension in Raycast
 ```
 
-- [贡献说明](CONTRIBUTING.md)：开发、复现问题与提交 PR。
-- [CLI](docs/cli.md) · [架构](docs/architecture.md) · [扩展接口](docs/integrations.md)。
-- [测试记录](TESTING.md) · [更新记录](CHANGELOG.md) · [发布准备](docs/releasing.md)。
-- [产品与 Logo 设计说明](docs/brand-brief.md)。
+The detailed guides below are currently in Simplified Chinese:
 
-使用问题与建议请提交 [Issue](https://github.com/0xFANGO/agent-inbox/issues)；安全问题请先阅读 [安全说明](SECURITY.md)。
+- [Contributing](CONTRIBUTING.md): development, reproducing problems, and pull requests.
+- [CLI](docs/cli.md) · [Architecture](docs/architecture.md) · [Integration interfaces](docs/integrations.md).
+- [Test record](TESTING.md) · [Changelog](CHANGELOG.md) · [Release preparation](docs/releasing.md).
+- [Product and logo design brief](docs/brand-brief.md).
 
-## 许可证
+Use [Issues](https://github.com/0xFANGO/agent-inbox/issues) for questions and suggestions. For security reports, read the [security policy (简体中文)](SECURITY.md) first.
 
-源码采用 [MIT](LICENSE)。第三方图标与随仓库附带的工具保留各自权利，素材来源核对事项见 [发布准备](docs/releasing.md#公开前尚需确认)。
+## License
+
+Source code is licensed under [MIT](LICENSE). Third-party icons and bundled tools retain their respective rights; see [asset review notes (简体中文)](docs/releasing.md#公开前尚需确认).

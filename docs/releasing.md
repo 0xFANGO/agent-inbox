@@ -37,9 +37,11 @@ CI 在 macOS 上检查 Node 22.22.2、24 和 26，并校验受版本控制的 CL
 
 ## GitHub 页面文案
 
-准备使用的 About，与 package.json / README 保持一致：
+准备使用的英文 About，与 package.json / 默认英文 README 保持一致：
 
-> 订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。
+> Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.
+
+默认入口是 `README.md`，中文版为 `README.zh-CN.md`，两者在顶部提供语言切换。支持平台为 Raycast，操作系统为 macOS；首页的平台标识使用本地 SVG 与 Simple Icons 的 Raycast / Apple 图标，仅说明兼容性，来源见 [图标说明](images/README.md)。
 
 建议 Homepage：`https://github.com/0xFANGO/agent-inbox#readme`。
 

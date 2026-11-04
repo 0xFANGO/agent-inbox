@@ -2,6 +2,10 @@
 
 ## 一句话
 
+Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.
+
+对应中文：
+
 订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。
 
 Agent Inbox 是面向同时使用多个 AI 编程会话的开发者的 macOS Raycast 扩展。它把分散在终端、桌面客户端里的会话集中到一个订阅列表，帮助用户知道哪个会话在运行、哪个正在等自己，以及应该回到哪里继续。
