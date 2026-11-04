@@ -43,3 +43,11 @@ The prepared source passed a fresh `npm ci`, `npm run check`, and `npm run lint`
 - Verified a literal AppleScript argument round trip using the system `osascript`; no system notifications were sent by these tests.
 - The updated Raycast UI, real terminal focus and notification-click workflows have not received a new live check. Earlier manual results below/above describe the original build.
 - After reconnecting hooks, a new hook event or new session refreshes terminal process identity; older unverified locators use the resume fallback.
+
+## PR #33134 follow-up review fixes — 2026-11-04
+
+- The Store checkout passed `npm run check`: 165 tests, no failures or skips, plus TypeScript, ESLint, Prettier and CLI/Raycast builds. `npm run lint`, direct `ray build -e dist`, and `npm run bundle` also passed.
+- Both subscription entry points were exercised with a blocked configuration directory; each reports the underlying error without closing Raycast or claiming success.
+- Host API stubs verify that Raycast catalog reads and title refreshes use `executeSQL`, including the legacy-index fallback when it rejects. They do not constitute a live Raycast database-permission test.
+- A copied CLI runs help and records/reads an event outside the repository without Raycast or `node_modules`. The packaged CLI matches the generated asset byte for byte, and all four commands are present in the `.rayext` archive.
+- No new native UI, terminal-focus, notification-delivery or notification-click checks were performed for this follow-up.
