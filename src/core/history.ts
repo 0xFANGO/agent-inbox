@@ -6,7 +6,7 @@ import { parseClaude, parseCodex, parseLines, readHeadTail, TranscriptInfo } fro
 import { HistoryEntry, Host } from "./types";
 import { findClaudeDesktopSession, readClaudeDesktopSessions } from "./claude-desktop";
 
-interface FileRef {
+export interface TranscriptFile {
   agent: "claude" | "codex";
   path: string;
   mtime: number;
@@ -16,8 +16,8 @@ interface FileRef {
 const CACHE_FILE = join(CACHE_DIR, "history.json");
 const CACHE_VERSION = 3;
 
-function listClaude(root: string): FileRef[] {
-  const out: FileRef[] = [];
+function listClaude(root: string): TranscriptFile[] {
+  const out: TranscriptFile[] = [];
   if (!existsSync(root)) return out;
   for (const dir of safeReaddir(root)) {
     const d = join(root, dir);
@@ -31,8 +31,8 @@ function listClaude(root: string): FileRef[] {
   return out;
 }
 
-function listCodex(root: string): FileRef[] {
-  const out: FileRef[] = [];
+function listCodex(root: string): TranscriptFile[] {
+  const out: TranscriptFile[] = [];
   const walk = (d: string, depth: number) => {
     for (const f of safeReaddir(d)) {
       const p = join(d, f);
@@ -85,7 +85,7 @@ function hostFor(agent: "claude" | "codex", info: TranscriptInfo): Host {
   return /desktop|codex_app|chatgpt/i.test(info.originator) ? "app" : "cli";
 }
 
-function toEntry(ref: FileRef, info: TranscriptInfo, names: Map<string, string>): HistoryEntry | null {
+function toEntry(ref: TranscriptFile, info: TranscriptInfo, names: Map<string, string>): HistoryEntry | null {
   let sessionId = info.sessionId;
   if (!sessionId) {
     sessionId = ref.agent === "claude" ? basename(ref.path, ".jsonl") : (basename(ref.path).match(UUID_IN_NAME)?.[1] ?? "");
@@ -132,11 +132,20 @@ function saveCache(c: CacheShape) {
 
 export interface ScanOptions {
   limit?: number;
+  /** Keep otherwise hidden metadata rows so full-content search can find dialogue outside head/tail windows. */
+  includeUntitled?: boolean;
   claudeRoot?: string;
   codexRoot?: string;
   codexIndex?: string;
   useCache?: boolean;
   claudeDesktopRoot?: string;
+}
+
+/** File metadata only: content indexing and history discovery share the same supported sources. */
+export function listTranscriptFiles(opts: Pick<ScanOptions, "claudeRoot" | "codexRoot"> = {}): TranscriptFile[] {
+  return [...listClaude(opts.claudeRoot ?? CLAUDE_PROJECTS), ...listCodex(opts.codexRoot ?? CODEX_SESSIONS)].sort(
+    (a, b) => b.mtime - a.mtime,
+  );
 }
 
 /**
@@ -145,9 +154,7 @@ export interface ScanOptions {
  */
 export function scanHistory(opts: ScanOptions = {}): HistoryEntry[] {
   const limit = opts.limit ?? 300;
-  const files = [...listClaude(opts.claudeRoot ?? CLAUDE_PROJECTS), ...listCodex(opts.codexRoot ?? CODEX_SESSIONS)]
-    .sort((a, b) => b.mtime - a.mtime)
-    .slice(0, limit);
+  const files = listTranscriptFiles(opts).slice(0, limit);
   const names = codexThreadNames(opts.codexIndex ?? CODEX_SESSION_INDEX);
   const desktop = readClaudeDesktopSessions(opts.claudeDesktopRoot);
   const useCache = opts.useCache ?? true;
@@ -183,7 +190,7 @@ export function scanHistory(opts: ScanOptions = {}): HistoryEntry[] {
           locator: { ...entry.locator, claudeDesktopId: record.sessionId },
         };
     }
-    if (entry?.title) out.push(entry);
+    if (entry && (entry.title || opts.includeUntitled)) out.push(entry);
   }
   if (useCache) saveCache(nextCache);
 

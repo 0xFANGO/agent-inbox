@@ -60,7 +60,7 @@ export function loadManifests(dir = ADAPTERS_DIR): AdapterManifest[] {
   return out;
 }
 
-const README = `# Session Manager adapters
+const README = `# Agent Inbox adapters
 
 Each JSON file here adds one agent. Example \`t3code.json\`:
 

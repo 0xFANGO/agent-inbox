@@ -4,7 +4,7 @@ import { runInNewContext } from "node:vm";
 import { CLAUDE_BUNDLE, ClaudeDesktopSession } from "../src/core/claude-desktop";
 import { CODEX_APP_BUNDLE } from "../src/core/adapters/codex";
 import { FocusAccessError, readFocusedWindow } from "../src/core/focused-window";
-import { sessionForForeground } from "../src/core/foreground";
+import { captureAfterRaycast, sessionForForeground } from "../src/core/foreground";
 import { Store } from "../src/core/db";
 import { TERMINAL_BUNDLE, GHOSTTY_BUNDLE, TmuxClient } from "../src/core/terminal";
 import { Session } from "../src/core/types";
@@ -37,7 +37,11 @@ const record: ClaudeDesktopSession = {
   lastFocusedAt: 1,
   isArchived: false,
 };
-const noIO = { readClaudeDesktopSessions: (): ClaudeDesktopSession[] => [], tmuxClients: async (): Promise<TmuxClient[]> => [] };
+const noIO = {
+  readClaudeDesktopSessions: (): ClaudeDesktopSession[] => [],
+  readCodexDesktopSessions: async () => [],
+  tmuxClients: async (): Promise<TmuxClient[]> => [],
+};
 
 test("current Claude document ID wins over a newer background session and duplicate titles", async () => {
   const background = { ...base, sessionId: "other", locator: { claudeDesktopId: "local_other" }, updatedAt: 999 };
@@ -107,6 +111,113 @@ test("Codex uses the focused title, and never guesses from last updated when no 
   );
   assert.equal(await sessionForForeground({ bundleId: CODEX_APP_BUNDLE }, [current], noIO), undefined);
   assert.equal(await sessionForForeground({ bundleId: "unrelated.app" }, [base], noIO), undefined);
+});
+
+const codexId = "019a1234-1234-7123-a123-123456789abc";
+const codexSession: Session = { ...base, agent: "codex", sessionId: codexId, locator: {} };
+
+test("Codex resolves protocol, local, detached-window and hash routes by ID even with duplicate titles", async () => {
+  for (const url of [
+    `codex://threads/${codexId}?hostId=remote-host`,
+    `app://-/local/${codexId}?hostId=remote-host`,
+    `app://-/hotkey-window/thread/${codexId}?hostId=remote-host`,
+    `file:///Applications/ChatGPT.app/index.html#/local/${codexId}?hostId=remote-host`,
+  ]) {
+    const result = await sessionForForeground(
+      { bundleId: CODEX_APP_BUNDLE, window: { title: "Codex", url } },
+      [
+        { ...codexSession, host: "cli" },
+        { ...codexSession, sessionId: "duplicate" },
+      ],
+      noIO,
+    );
+    assert.equal(result?.sessionId, codexId);
+    assert.equal(result?.host, "app");
+    assert.equal(result?.locator.hostId, "remote-host");
+  }
+});
+
+test("Codex catalog names resolve renamed and old sessions, preserving existing subscription state", async () => {
+  const catalog = { ...codexSession, title: "Renamed conversation", transcriptPath: "/old/rollout.jsonl" };
+  const actions = { ...noIO, readCodexDesktopSessions: async () => [catalog] };
+  const context = { bundleId: CODEX_APP_BUNDLE, window: { title: "Renamed conversation - ChatGPT", url: "app://-/index.html" } };
+  const known = { ...codexSession, host: "cli" as const, subscribed: true, status: "running" as const, transcriptPath: "" };
+  const matched = await sessionForForeground(context, [known], actions);
+  assert.equal(matched?.subscribed, true);
+  assert.equal(matched?.status, "running");
+  assert.equal(matched?.transcriptPath, catalog.transcriptPath);
+  assert.equal(matched?.host, "app");
+  assert.equal((await sessionForForeground(context, [], actions))?.sessionId, codexId);
+  assert.equal(known.host, "cli", "matching does not mutate other session rows");
+});
+
+test("Codex rejects ambiguous titles, unknown IDs, conflicting windows, and non-chat routes", async () => {
+  const other = { ...codexSession, sessionId: "019a1234-1234-7123-a123-123456789abd" };
+  const context = { bundleId: CODEX_APP_BUNDLE, window: { title: base.title, url: "" } };
+  assert.equal(await sessionForForeground(context, [codexSession, other], noIO), undefined);
+  for (const url of ["app://-/settings", "https://example.com/", `codex://threads/${other.sessionId}`]) {
+    assert.equal(await sessionForForeground({ ...context, window: { ...context.window, url } }, [codexSession], noIO), undefined);
+  }
+  assert.equal(
+    await sessionForForeground(
+      {
+        ...context,
+        window: {
+          title: base.title,
+          url: `codex://threads/${codexId}`,
+          documentUrl: `app://-/local/${other.sessionId}`,
+        },
+      },
+      [codexSession, other],
+      noIO,
+    ),
+    undefined,
+  );
+  assert.equal(
+    await sessionForForeground(
+      {
+        ...context,
+        window: {
+          title: "Another conversation",
+          windowTitle: base.title,
+          url: "app://-/index.html",
+        },
+      },
+      [codexSession, { ...other, title: "Another conversation" }],
+      noIO,
+    ),
+    undefined,
+  );
+});
+
+test("foreground capture waits for Raycast to close and for the focused window to become available", async () => {
+  let closed = false;
+  let captures = 0;
+  const bundles = ["com.raycast.macos", CODEX_APP_BUNDLE, CODEX_APP_BUNDLE];
+  const result = await captureAfterRaycast({
+    close: async () => {
+      closed = true;
+    },
+    getBundleId: async () => {
+      assert.equal(closed, true);
+      return bundles.shift();
+    },
+    capture: async (bundleId) => ({ bundleId, window: ++captures === 1 ? undefined : { title: base.title, url: "" } }),
+    wait: async () => undefined,
+  });
+  assert.equal(result.window?.title, base.title);
+  assert.equal(captures, 2);
+  assert.deepEqual(
+    await captureAfterRaycast({
+      close: async () => undefined,
+      getBundleId: async () => "com.raycast.macos",
+      wait: async () => undefined,
+      capture: async () => {
+        throw new Error("must not inspect Raycast as the previous agent window");
+      },
+    }),
+    {},
+  );
 });
 
 test("current terminal tty selects the exact tab, without falling back to another tab", async () => {

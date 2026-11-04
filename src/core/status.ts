@@ -122,31 +122,37 @@ function stripEmpty<T extends object>(o: T | undefined): Partial<T> {
   return out;
 }
 
-export type InboxSection = "needs_input" | "running" | "done";
+export type InboxSection = "needs_input" | "subscribed" | "done";
+
+export type SessionFilter = "all" | "subscribed" | "needs_input" | "done";
+
+/** Subscription and status filters overlap; the default view keeps every session discoverable. */
+export function filterSessions(sessions: Session[], filter: SessionFilter): Session[] {
+  if (filter === "all") return sessions;
+  return sessions.filter((s) => (filter === "subscribed" ? s.subscribed : s.status === filter));
+}
 
 /**
  * Inbox rules:
- * - waiting for input is always on top, subscribed or not
- * - running / done only when subscribed
+ * - only subscribed sessions, including history without a live status
+ * - waiting for input is always on top
  * - handled sessions leave the inbox until their status changes
  */
 export function inboxSection(s: Session): InboxSection | null {
-  if (s.handledAt !== null) return null;
+  if (!s.subscribed || s.handledAt !== null) return null;
   if (s.status === "needs_input") return "needs_input";
-  if (!s.subscribed) return null;
-  if (s.status === "running") return "running";
   if (s.status === "done") return "done";
-  return null;
+  return "subscribed";
 }
 
 export function groupInbox(sessions: Session[]): Record<InboxSection, Session[]> {
-  const groups: Record<InboxSection, Session[]> = { needs_input: [], running: [], done: [] };
+  const groups: Record<InboxSection, Session[]> = { needs_input: [], subscribed: [], done: [] };
   for (const s of sessions) {
     const sec = inboxSection(s);
     if (sec) groups[sec].push(s);
   }
-  groups.needs_input.sort((a, b) => Number(b.subscribed) - Number(a.subscribed) || b.updatedAt - a.updatedAt);
-  groups.running.sort((a, b) => b.updatedAt - a.updatedAt);
+  groups.needs_input.sort((a, b) => b.updatedAt - a.updatedAt);
+  groups.subscribed.sort((a, b) => b.updatedAt - a.updatedAt);
   groups.done.sort((a, b) => b.updatedAt - a.updatedAt);
   return groups;
 }

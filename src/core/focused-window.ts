@@ -1,9 +1,12 @@
 import { osascript } from "./exec";
 import { nativeFocusScript } from "./native-focus";
+import { selectWindowDocument } from "./focus-selection";
 
 export interface FocusedWindow {
   title: string;
   url: string;
+  windowTitle?: string;
+  documentUrl?: string;
 }
 
 /** Read the front window's outer document, never sidebar links or conversation contents. */
@@ -13,7 +16,7 @@ export async function readFocusedWindow(bundleId: string, execute = osascript): 
     try {
       const value = JSON.parse(native.stdout);
       if (value === null) return undefined;
-      if (value && typeof value.title === "string" && typeof value.url === "string") return { title: value.title, url: value.url };
+      if (validWindow(value)) return value;
     } catch {
       // An unavailable native bridge can still fall back to a unique window title.
     }
@@ -21,6 +24,7 @@ export async function readFocusedWindow(bundleId: string, execute = osascript): 
   const result = await execute(
     `
 const processes = Application("System Events").applicationProcesses.whose({ bundleIdentifier: ${JSON.stringify(bundleId)} })();
+const selectDocument = ${selectWindowDocument.toString()};
 if (!processes.length) JSON.stringify(null);
 else {
   const app = processes[0];
@@ -28,7 +32,6 @@ else {
     try { return node.attributes.byName(name).value(); } catch (_) { return undefined; }
   }
   let window = attribute(app, "AXFocusedWindow");
-  if (!window) { try { window = app.windows[0]; } catch (_) {} }
   let result = null;
   if (window) {
     result = { title: String(attribute(window, "AXTitle") || ""), url: String(attribute(window, "AXDocument") || "") };
@@ -41,7 +44,8 @@ else {
         const title = String(attribute(item.node, "AXTitle") || "");
         // Claude exposes its Electron shell and conversation as sibling documents.
         if (${JSON.stringify(bundleId)} === "com.anthropic.claudefordesktop" && (url.startsWith("file:") || (!url && !title))) continue;
-        result = { title: title || result.title, url: url || result.url };
+        if (!url && !title) continue;
+        result = selectDocument(result, { title, url });
         break;
       }
       if (item.depth < 8) {
@@ -60,11 +64,22 @@ else {
   }
   try {
     const value = JSON.parse(result.stdout);
-    if (value && typeof value.title === "string" && typeof value.url === "string") return { title: value.title, url: value.url };
+    if (validWindow(value)) return value;
   } catch {
     // An unsupported accessibility tree is not evidence of a focused conversation.
   }
   return undefined;
+}
+
+function validWindow(value: unknown): value is FocusedWindow {
+  if (!value || typeof value !== "object") return false;
+  const w = value as Record<string, unknown>;
+  return (
+    typeof w.title === "string" &&
+    typeof w.url === "string" &&
+    (w.windowTitle === undefined || typeof w.windowTitle === "string") &&
+    (w.documentUrl === undefined || typeof w.documentUrl === "string")
+  );
 }
 
 export class FocusAccessError extends Error {

@@ -1,3 +1,5 @@
+import { selectWindowDocument } from "./focus-selection";
+
 /** Native AX attributes retain CFURL values that System Events cannot serialize. */
 export function nativeFocusScript(bundleId: string): string {
   return `
@@ -9,6 +11,7 @@ ObjC.bindFunction("CFGetTypeID", ["unsigned long", ["id"]]);
 ObjC.bindFunction("CFURLGetTypeID", ["unsigned long", []]);
 ObjC.bindFunction("CFURLGetString", ["id", ["id"]]);
 const bundle = ${JSON.stringify(bundleId)};
+const selectDocument = ${selectWindowDocument.toString()};
 function attribute(node, name) {
   const value = Ref();
   const error = $.AXUIElementCopyAttributeValue(node, $(name), value);
@@ -36,7 +39,8 @@ function readWindow() {
       const url = text(attribute(item.node, "AXURL"));
       const title = text(attribute(item.node, "AXTitle"));
       if (bundle === "com.anthropic.claudefordesktop" && (url.startsWith("file:") || (!url && !title))) continue;
-      return { title: title || result.title, url: url || result.url };
+      if (!url && !title) continue;
+      return selectDocument(result, { title, url });
     }
     if (item.depth < 8) {
       const children = attribute(item.node, "AXChildren");

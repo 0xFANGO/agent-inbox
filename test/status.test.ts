@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { applyEvent, endsWithQuestion, groupInbox, inboxSection, toTitle, waitingCount } from "../src/core/status";
+import { applyEvent, endsWithQuestion, filterSessions, groupInbox, inboxSection, toTitle, waitingCount } from "../src/core/status";
 import { AgentEvent, Session } from "../src/core/types";
 
 const ev = (type: AgentEvent["type"], extra: Partial<AgentEvent> = {}): AgentEvent => ({
@@ -54,10 +54,10 @@ test("handled sessions come back only when the status changes", () => {
   assert.equal(run([ev("ended")], done).handledAt, 5);
   const again = run([ev("progress")], done);
   assert.equal(again.handledAt, null);
-  assert.equal(inboxSection(again), "running");
+  assert.equal(inboxSection(again), "subscribed");
 });
 
-test("inbox: waiting always shows, the rest only when subscribed; subscribed waiting first", () => {
+test("subscriptions: only subscribed, unhandled sessions appear, including idle history", () => {
   const mk = (id: string, status: Session["status"], subscribed: boolean, updatedAt: number): Session => ({
     ...run([ev("progress", { sessionId: id })]),
     status,
@@ -75,17 +75,20 @@ test("inbox: waiting always shows, the rest only when subscribed; subscribed wai
   const g = groupInbox(list);
   assert.deepEqual(
     g.needs_input.map((s) => s.sessionId),
-    ["b", "a"],
+    ["b"],
   );
   assert.deepEqual(
-    g.running.map((s) => s.sessionId),
-    ["d"],
+    g.subscribed.map((s) => s.sessionId),
+    ["d", "f"],
   );
   assert.deepEqual(
     g.done.map((s) => s.sessionId),
     ["e"],
   );
+  assert.deepEqual(Object.keys(g), ["needs_input", "subscribed", "done"]);
   assert.equal(waitingCount(list), 1);
+  assert.equal(inboxSection({ ...list[1], handledAt: 100 }), null);
+  assert.equal(waitingCount([{ ...list[1], handledAt: 100 }]), 0);
 });
 
 test("question heuristic", () => {
@@ -130,4 +133,20 @@ test("events with sparse metadata preserve the session title, location and trans
   assert.equal(next.cwd, "/repo");
   assert.equal(next.transcriptPath, "/transcript");
   assert.deepEqual(next.locator, { tty: "/dev/ttys001", tmuxPane: "%2", hostId: "host" });
+});
+
+test("all-session filters preserve running discovery and allow subscription/status overlap", () => {
+  const sessions: Session[] = [
+    { ...run([ev("progress", { sessionId: "running" })]), subscribed: false },
+    { ...run([ev("needs_input", { sessionId: "waiting" })]), subscribed: true },
+    { ...run([ev("stopped", { sessionId: "done" })]), subscribed: true },
+    { ...run([ev("started", { sessionId: "history" })]), subscribed: true },
+    { ...run([ev("needs_input", { sessionId: "unsubscribed-waiting" })]), subscribed: false },
+  ];
+  const ids = (filter: Parameters<typeof filterSessions>[1]) => filterSessions(sessions, filter).map((s) => s.sessionId);
+  assert.deepEqual(ids("all"), ["running", "waiting", "done", "history", "unsubscribed-waiting"]);
+  assert.deepEqual(ids("subscribed"), ["waiting", "done", "history"]);
+  assert.deepEqual(ids("needs_input"), ["waiting", "unsubscribed-waiting"]);
+  assert.deepEqual(ids("done"), ["done"]);
+  assert.deepEqual(filterSessions([], "subscribed"), []);
 });

@@ -28,9 +28,9 @@ interface JumpContext {
   jump?: { agent: string; sessionId: string };
 }
 
-const SECTIONS: { key: InboxSection; title: "section.needsInput" | "section.running" | "section.done" }[] = [
+const SECTIONS: { key: InboxSection; title: "section.needsInput" | "section.subscribed" | "section.done" }[] = [
   { key: "needs_input", title: "section.needsInput" },
-  { key: "running", title: "section.running" },
+  { key: "subscribed", title: "section.subscribed" },
   { key: "done", title: "section.done" },
 ];
 
@@ -64,15 +64,28 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
           actions={
             <ActionPanel>
               <Action
-                title={t("action.openSetup")}
+                title={t("nav.settings")}
                 icon={Icon.Plug}
-                onAction={() => launchCommand({ name: "setup", type: LaunchType.UserInitiated })}
+                onAction={() => launchCommand({ name: "settings", type: LaunchType.UserInitiated })}
               />
             </ActionPanel>
           }
         />
       ) : (
-        <List.EmptyView icon={Icon.Tray} title={t("empty.inbox.title")} description={t("empty.inbox.desc")} />
+        <List.EmptyView
+          icon={Icon.Bell}
+          title={t("empty.inbox.title")}
+          description={t("empty.inbox.desc")}
+          actions={
+            <ActionPanel>
+              <Action
+                title={t("action.openAll")}
+                icon={Icon.List}
+                onAction={() => launchCommand({ name: "all-sessions", type: LaunchType.UserInitiated })}
+              />
+            </ActionPanel>
+          }
+        />
       )}
       {SECTIONS.map(({ key, title }) => (
         <List.Section key={key} title={t(title)}>
@@ -101,7 +114,7 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
               onArchiveDone={async () => {
                 let n = 0;
                 await update(
-                  async () => (n = await store.archiveDone()),
+                  async () => (n = await store.archiveDone(Date.now(), await activeSessions())),
                   (list) => list.filter((x) => x.status !== "done"),
                 );
                 await showHUD(t("hud.archived", { n }));

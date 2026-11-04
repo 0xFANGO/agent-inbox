@@ -91,6 +91,10 @@ export type Language = "zh" | "en";
 export interface Config {
   language: Language;
   notifications: boolean;
+  /** Whether the subscription list is shown in macOS' menu bar. */
+  menuBarEnabled: boolean;
+  /** Explicit opt-in to reading and indexing full local conversation bodies. */
+  contentSearchEnabled: boolean;
   /** raycast://extensions/<owner>/<extension> — written by the extension so the CLI can build deeplinks. */
   deeplinkBase: string;
   /** Terminal used when a CLI session has to be resumed in a new window. */

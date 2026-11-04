@@ -126,9 +126,7 @@ export class Store {
 
   /** Rows that can appear in the inbox or the menu bar. */
   async active(): Promise<Session[]> {
-    const rows = await this.run(
-      `SELECT ${COLUMNS} FROM sessions WHERE handled_at IS NULL AND (status='needs_input' OR (subscribed=1 AND status IN ('running','done'))) ORDER BY updated_at DESC;`,
-    );
+    const rows = await this.run(`SELECT ${COLUMNS} FROM sessions WHERE subscribed=1 AND handled_at IS NULL ORDER BY updated_at DESC;`);
     return rows.map(fromRow);
   }
 
@@ -150,15 +148,29 @@ export class Store {
   }
 
   async setSubscribed(agent: string, sessionId: string, subscribed: boolean): Promise<void> {
-    await this.run(`UPDATE sessions SET subscribed=${q(subscribed)} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
+    await this.run(
+      `UPDATE sessions SET subscribed=${q(subscribed)}${subscribed ? ", handled_at=NULL" : ""} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`,
+    );
   }
 
   /** Subscribe to a session that may only exist as a transcript on disk (history). */
-  async subscribeEntry(s: Session): Promise<void> {
+  async subscribeEntry(s: Session, options: { focused?: boolean } = {}): Promise<void> {
     // A hook may create the row concurrently. Never replace its state with an old history snapshot.
+    // A positively identified desktop window can correct old CLI ownership without touching
+    // status, timestamps or terminal locators recorded by a newer hook.
+    const identity =
+      options.focused && s.host === "app"
+        ? `, host='app', title=CASE WHEN excluded.title<>'' THEN excluded.title ELSE sessions.title END, ` +
+          `locator=json_patch(CASE WHEN json_valid(sessions.locator) THEN sessions.locator ELSE '{}' END, ${q(
+            JSON.stringify({
+              ...(s.locator.hostId ? { hostId: s.locator.hostId } : {}),
+              ...(s.locator.claudeDesktopId ? { claudeDesktopId: s.locator.claudeDesktopId } : {}),
+            }),
+          )})`
+        : "";
     await this.run(
-      `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s, subscribed: true })}) ` +
-        `ON CONFLICT(agent, session_id) DO UPDATE SET subscribed=1;`,
+      `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s, subscribed: true, handledAt: null })}) ` +
+        `ON CONFLICT(agent, session_id) DO UPDATE SET subscribed=1, handled_at=NULL${identity};`,
     );
   }
 
@@ -171,9 +183,17 @@ export class Store {
   }
 
   /** "Archive Completed": every finished session leaves the inbox. */
-  async archiveDone(at = Date.now()): Promise<number> {
+  async archiveDone(at = Date.now(), observed?: Session[]): Promise<number> {
+    // The view can recover completed turns from bounded transcript tails even when a
+    // pre-install session is still idle in the hook DB. Archive the observed rows only,
+    // without persisting inferred state or hiding a newer hook update.
+    const snapshots = observed?.filter((s) => s.subscribed && s.handledAt === null && s.status === "done");
+    if (snapshots?.length === 0) return 0;
+    const state = snapshots
+      ? `status IN ('idle','done') AND (${snapshots.map((s) => `(agent=${q(s.agent)} AND session_id=${q(s.sessionId)} AND updated_at=${q(s.updatedAt)})`).join(" OR ")})`
+      : "status='done'";
     const rows = await this.run<{ n: number }>(
-      `UPDATE sessions SET handled_at=${q(at)} WHERE status='done' AND handled_at IS NULL; SELECT changes() AS n;`,
+      `UPDATE sessions SET handled_at=${q(at)} WHERE subscribed=1 AND ${state} AND handled_at IS NULL; SELECT changes() AS n;`,
     );
     return rows[0]?.n ?? 0;
   }

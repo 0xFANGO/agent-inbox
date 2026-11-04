@@ -87,3 +87,20 @@ Apple SDK `AXAttributeConstants.h` 将 `kAXURLAttribute` 的值定义为 **CFURL
 - `lastFocusedAt` 不代表当前焦点：C3r2jk0E 的 visibility true 写它，false 不清空；fork、unarchive 也会更新时间。`window-state.json` 对应实现保存几何位置和窗口状态，没有会话 ID。对少数配置文件白名单字段的检查不是对所有 Chromium 存储的穷尽搜索。
 
 因此采用原生 AXURL 是实现选择；内存 setter 和磁盘字段仅作交叉验证，不进入运行时读取链路。
+
+## 补查：Claude 为什么被分到「其他会话」
+
+同日用户提供订阅列表截图后，针对该条会话作只读核对：插件数据库中 `subscribed=1`、`host=app`、`status=idle`；其事件只有 started / ended，没有 stopped。初始状态没有完成事件可推进，旧界面把 idle 单列为「其他会话」。本地 transcript 的最后对话消息却有明确的 `message.stop_reason=end_turn`；后续记录仅为 stop-hook 汇总、artifact、queue 和成本 bookkeeping。这是该条会话缺少历史状态恢复的直接证据，不是 Claude 没有完成回复。
+
+此次实际安装包已为 Claude **4.16336.0**，ASAR SHA-256 `6a95a8b6bdee2fa3d5edce1a2ad081f89bcf98ddc335ec723018615302772767`，不能复用前述旧包的偏移来断言新版行为。按 ASAR 目录提取新版 `.vite/build/index.chunk-_xHmE7Nf.js` 原始成员交给 REA 分析：
+
+- 成员 offset `23330893`，size `292093`，SHA-256 `d0b917967934fb50b8e13003a13fa020b4df1326fbef5879757236cd01ea93b9`。
+- 父 Evidence：`ev_c3701e2d12b740b9f48f8993287cdae1e19226ce968028b8929a9fd135fde1a8`。
+- 摘要：`ev_fa25dc21f584eabe6bd4c34fb156a84328265bf1bc56f6e8513705b98f2f347d`；模块页：`ev_cb97f319b85412fab05b45a403614d104cf7579672c2056e51b4b746342fe19e`。
+- 单成员解析成功，语义图因 100,000 节点上限为 partial，保留 15,746 项 unknown；未解析整个应用或运行提取代码。
+
+原始成员字符 51,900 附近的 `Ei` / `Di` / `ki` / `Ai` 函数会在运行状态切换、错误变化时更新 `lastTurnEdgeAt`；它不是单纯的“完成时间”。本地 `completedTurns` 只证明曾有已完成回合，不证明最新回合结束。新版序列化成员 `index.chunk-DZWftBCb.js` 的 457,876 / 459,343 附近保存这些历史字段。因此产品没有按时间、完成次数或活动新旧推测当前状态。
+
+修复：只对 Claude 的 idle 初始状态，用连续尾部最多 96 KB 的明确 `end_turn` 恢复结束状态；后续用户、工具、进度、非最终助手消息或不完整记录会否定旧证据。文本问句继续沿用已有的待输入启发式。读取失败、未知格式或窗口内无结束证据时保持未知，不把普通助手文本误当完成。状态证据只作内存缓存，按 mtime / size 失效；不建全文索引，不写回会话状态或触发通知。
+
+显示分区统一为「待输入 / 已订阅 / 已完成」：运行中和未知初始状态归入已订阅。归档对恢复出的完成记录也生效，只标记已处理，并以数据库原更新时间及当前状态检查避免隐藏新 Hook 活动。核心回归和 Raycast 验收见 [测试记录](../TESTING.md)。

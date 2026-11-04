@@ -1,4 +1,5 @@
 import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { endsWithQuestion } from "./status";
 
 /** Read the first and last chunk of a (potentially huge) JSONL transcript. */
 export function readHeadTail(path: string, headBytes = 64 * 1024, tailBytes = 48 * 1024): { head: string[]; tail: string[]; size: number } {
@@ -72,6 +73,79 @@ function textOf(content: unknown): string {
       })
       .filter(Boolean)
       .join("\n");
+  }
+  return "";
+}
+
+export interface ClaudeTurnState {
+  status: "done" | "needs_input";
+  attention: "question" | null;
+}
+
+/**
+ * Recover only an explicitly finished Claude turn from a contiguous suffix of the transcript.
+ * An assistant message alone is not completion evidence. Later dialogue/activity or an
+ * incomplete record invalidates an earlier end_turn, while bookkeeping after a stop is inert.
+ */
+export function claudeTurnState(lines: string[]): ClaudeTurnState | undefined {
+  let state: ClaudeTurnState | undefined;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    let entry: J;
+    try {
+      const value: unknown = JSON.parse(line);
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        state = undefined;
+        continue;
+      }
+      entry = value as J;
+    } catch {
+      state = undefined;
+      continue;
+    }
+    if (entry.type === "assistant") {
+      const message = obj(entry.message);
+      const stop = str(message.stop_reason) || str(entry.stop_reason);
+      if (stop !== "end_turn") {
+        state = undefined;
+        continue;
+      }
+      state = endsWithQuestion(textOf(message.content))
+        ? { status: "needs_input", attention: "question" }
+        : { status: "done", attention: null };
+    } else if (
+      entry.type === "user" ||
+      entry.type === "tool" ||
+      entry.type === "tool_use" ||
+      entry.type === "tool_result" ||
+      entry.type === "progress" ||
+      entry.type === "stream_event" ||
+      entry.type === "permission_request" ||
+      (entry.type === "system" && entry.subtype !== "stop_hook_summary" && entry.subtype !== "turn_duration")
+    ) {
+      state = undefined;
+    }
+  }
+  return state;
+}
+
+/** Searchable dialogue only: never tool arguments/results, thinking, or injected setup messages. */
+export function conversationText(agent: string, entry: J): string {
+  if (agent === "claude") {
+    if ((entry.type !== "user" && entry.type !== "assistant") || entry.isMeta) return "";
+    const text = textOf(obj(entry.message).content);
+    return entry.type === "user" && isScaffolding(text) ? "" : text;
+  }
+  if (agent === "codex") {
+    const payload = obj(entry.payload);
+    if (entry.type === "event_msg" && (payload.type === "user_message" || payload.type === "agent_message")) {
+      const text = str(payload.message);
+      return payload.type === "user_message" && isScaffolding(text) ? "" : text;
+    }
+    if (entry.type === "response_item" && payload.type === "message" && (payload.role === "user" || payload.role === "assistant")) {
+      const text = textOf(payload.content);
+      return payload.role === "user" && isScaffolding(text) ? "" : text;
+    }
   }
   return "";
 }

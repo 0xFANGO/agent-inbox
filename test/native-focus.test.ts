@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { nativeFocusScript } from "../src/core/native-focus";
 import { CLAUDE_BUNDLE } from "../src/core/claude-desktop";
+import { CODEX_APP_BUNDLE } from "../src/core/adapters/codex";
 
 interface Element {
   [attribute: string]: unknown;
@@ -17,7 +18,7 @@ const web = (url: string, title: string, children: Element[] = []): Element => (
 });
 const window = (children: Element[]): Element => ({ AXRole: "AXWindow", AXTitle: "Claude", AXChildren: array(children) });
 
-function runProbe(app: Element, running = true): unknown {
+function runProbe(app: Element, running = true, bundle = CLAUDE_BUNDLE): unknown {
   const bridge = Object.assign((value: unknown) => value, {
     NSRunningApplication: { runningApplicationsWithBundleIdentifier: () => array(running ? [{ processIdentifier: 123 }] : []) },
     AXUIElementCreateApplication: () => app,
@@ -32,7 +33,7 @@ function runProbe(app: Element, running = true): unknown {
     CFURLGetString: (value: { value: string }) => value.value,
   });
   return JSON.parse(
-    runInNewContext(nativeFocusScript(CLAUDE_BUNDLE), {
+    runInNewContext(nativeFocusScript(bundle), {
       $: bridge,
       Ref: () => [],
       ObjC: {
@@ -71,4 +72,23 @@ test("native AX never substitutes a background window or starts an absent applic
 
 test("native AX reports the accessibility denial instead of guessing a window", () => {
   assert.throws(() => runProbe({ denied: true }), /AX_ACCESS_DENIED/);
+});
+
+test("Codex's generic Electron document preserves the native conversation title and URL", () => {
+  const route = "codex://threads/019a1234-1234-7123-a123-123456789abc";
+  const focused = { ...window([web("app://-/index.html", "Codex")]), AXTitle: "Renamed conversation", AXDocument: cfurl(route) };
+  assert.deepEqual(runProbe({ AXFocusedWindow: focused }, true, CODEX_APP_BUNDLE), {
+    title: "Renamed conversation",
+    url: route,
+    documentUrl: "app://-/index.html",
+  });
+});
+
+test("different document and native titles are both retained for ambiguity checks", () => {
+  const focused = { ...window([web("app://-/index.html", "Document name")]), AXTitle: "Native name" };
+  assert.deepEqual(runProbe({ AXFocusedWindow: focused }, true, CODEX_APP_BUNDLE), {
+    title: "Document name",
+    windowTitle: "Native name",
+    url: "app://-/index.html",
+  });
 });

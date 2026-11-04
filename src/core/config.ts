@@ -8,6 +8,8 @@ export const DEFAULT_DEEPLINK_BASE = "raycast://extensions/0xFango/agent-inbox";
 export const DEFAULT_CONFIG: Config = {
   language: "zh",
   notifications: true,
+  menuBarEnabled: true,
+  contentSearchEnabled: false,
   deeplinkBase: DEFAULT_DEEPLINK_BASE,
   resumeTerminal: "terminal",
 };

@@ -4,7 +4,7 @@ import { shQuote } from "../exec";
 import { copyToClipboard, jumpToCli, openUrl } from "../jump";
 import { endsWithQuestion } from "../status";
 import { AgentEvent, Config, Host, Session } from "../types";
-import { Adapter, DetectResult, FileChange, HOOK_MARKER, HookContext, InstallPlan } from "./types";
+import { Adapter, DetectResult, FileChange, HOOK_MARKER, HookContext, InstallPlan, JumpResult } from "./types";
 import { hasOurHooks, HookEntry, parseJsonFile, stringify, withOurHooks, withoutOurHooks } from "./json";
 
 export const CODEX_APP_BUNDLE = "com.openai.codex";
@@ -13,6 +13,22 @@ const CODEX_APP_PATHS = ["/Applications/Codex.app", "/Applications/ChatGPT.app"]
 export const CODEX_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit"] as const;
 
 const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Use the app's external conversation-link contract, independent of its internal renderer routes. */
+export async function jumpCodex(
+  session: Session,
+  config: Config,
+  navigation = { openUrl, copyToClipboard, jumpToCli },
+): Promise<JumpResult> {
+  if (session.host !== "app") return navigation.jumpToCli(session, `codex resume ${shQuote(session.sessionId)}`, config);
+  if (THREAD_ID.test(session.sessionId)) {
+    const host = session.locator?.hostId ? `?hostId=${encodeURIComponent(session.locator.hostId)}` : "";
+    if (await navigation.openUrl(`codex://threads/${session.sessionId}${host}`)) return { ok: true, method: "url" };
+  }
+  const launched = await navigation.openUrl("codex://launch");
+  const copied = await navigation.copyToClipboard(session.sessionId);
+  return { ok: launched && copied, method: "copied" };
+}
 
 function read(path: string): string {
   try {
@@ -218,17 +234,5 @@ export const codexAdapter: Adapter = {
     return kind === "codex-notify" ? parseCodexNotify(payload, env) : parseCodexHook(payload, env);
   },
 
-  async jump(session: Session, config: Config) {
-    if (session.host === "app") {
-      if (THREAD_ID.test(session.sessionId)) {
-        const host = session.locator?.hostId ? `?hostId=${encodeURIComponent(session.locator.hostId)}` : "";
-        if (await openUrl(`codex://threads/${session.sessionId}${host}`)) return { ok: true, method: "url" };
-      }
-      // Explicit fallback: show the main window and hand over the id.
-      await openUrl("codex://launch");
-      await copyToClipboard(session.sessionId);
-      return { ok: true, method: "copied" };
-    }
-    return jumpToCli(session, `codex resume ${shQuote(session.sessionId)}`, config);
-  },
+  jump: jumpCodex,
 };

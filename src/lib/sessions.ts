@@ -2,17 +2,20 @@ import { closeMainWindow, showHUD, showToast, Toast } from "@raycast/api";
 import { getAdapter } from "../core/adapters";
 import { Store } from "../core/db";
 import { enrichClaudeSessions } from "../core/claude-desktop";
+import { enrichCodexTitles, readCodexDesktopSessions } from "../core/codex-desktop";
 import { Translator } from "../core/i18n";
 import { Config, Session } from "../core/types";
+import { recoverIdleSessionStates } from "../core/transcript-state";
 
 export const store = new Store();
 
 export async function activeSessions(): Promise<Session[]> {
-  return enrichClaudeSessions(await store.active());
+  const rows = recoverIdleSessionStates(enrichClaudeSessions(await store.active()));
+  return rows.some((s) => s.agent === "codex") ? enrichCodexTitles(rows, await readCodexDesktopSessions()) : rows;
 }
 
 export async function allSessions(limit = 500): Promise<Session[]> {
-  return enrichClaudeSessions(await store.all(limit));
+  return recoverIdleSessionStates(enrichClaudeSessions(await store.all(limit)));
 }
 
 /** Jump back to the session and close Raycast. Shows a HUD when a fallback was used. */

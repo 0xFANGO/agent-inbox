@@ -18,7 +18,8 @@ test("record, subscribe, handle, archive", async (context) => {
     locator: { tty: "/dev/ttys001" },
   });
   await store.record({ agent: "codex", sessionId: "b", type: "needs_input", summary: "要不要？", at: 2 });
-  assert.equal((await store.active()).length, 1, "unsubscribed running session is not active; waiting one is");
+  assert.equal((await store.active()).length, 0, "unsubscribed sessions never appear, even when waiting");
+  await store.setSubscribed("codex", "b", true);
 
   await store.setSubscribed("claude", "a", true);
   let a = (await store.get("claude", "a"))!;
@@ -63,6 +64,10 @@ test("subscribing to a history entry creates the row", async (context) => {
   const row = (await store.get("codex", "h"))!;
   assert.equal(row.subscribed, true);
   assert.equal(row.status, "idle");
+  assert.deepEqual(
+    (await store.active()).map((s) => s.sessionId),
+    ["h"],
+  );
 });
 
 test("sessions with the same ID stay independent across agents and quoted IDs remain data", async (t) => {
@@ -80,6 +85,8 @@ test("sessions with the same ID stay independent across agents and quoted IDs re
     ["claude"],
   );
   await store.unmarkHandled("codex", sessionId);
+  assert.equal((await store.active()).length, 1, "unhandled alone does not subscribe");
+  await store.setSubscribed("codex", sessionId, true);
   assert.equal((await store.active()).length, 2);
   assert.equal((await store.all(1))[0].agent, "codex");
 });
@@ -112,4 +119,56 @@ test("subscribing history cannot overwrite a hook row after a stale absence chec
   assert.equal(current.title, "New live prompt");
   assert.equal(current.cwd, "/live");
   assert.equal(current.updatedAt, 20);
+});
+
+test("a matched desktop window persists corrected identity without overwriting concurrent hook state", async (t) => {
+  const store = tmp(t);
+  await store.record({ agent: "codex", sessionId: "s", host: "cli", type: "started", at: 1 });
+  const focused = { ...(await store.get("codex", "s"))!, host: "app" as const, title: "Renamed", locator: { hostId: "host-one" } };
+  await store.record({ agent: "codex", sessionId: "s", type: "progress", locator: { tty: "/dev/ttys007" }, at: 2 });
+  await store.subscribeEntry(focused, { focused: true });
+  const current = (await store.get("codex", "s"))!;
+  assert.equal(current.host, "app");
+  assert.equal(current.title, "Renamed");
+  assert.equal(current.subscribed, true);
+  assert.equal(current.status, "running");
+  assert.equal(current.updatedAt, 2);
+  assert.deepEqual(current.locator, { tty: "/dev/ttys007", hostId: "host-one" });
+});
+
+test("resubscribing restores handled sessions and archive only affects subscriptions", async (t) => {
+  const store = tmp(t);
+  for (const sessionId of ["subscribed", "unsubscribed"]) {
+    await store.record({ agent: "claude", sessionId, type: "stopped", at: 1 });
+  }
+  await store.setSubscribed("claude", "subscribed", true);
+  assert.equal(await store.archiveDone(2), 1);
+  assert.equal((await store.get("claude", "unsubscribed"))!.handledAt, null);
+  assert.equal((await store.active()).length, 0);
+  const archived = (await store.get("claude", "subscribed"))!;
+  await store.subscribeEntry(archived);
+  assert.equal((await store.get("claude", "subscribed"))!.handledAt, null);
+  assert.equal((await store.active()).length, 1);
+  await store.markHandled("claude", "subscribed", 3);
+  await store.setSubscribed("claude", "subscribed", false);
+  assert.equal((await store.active()).length, 0);
+  await store.setSubscribed("claude", "subscribed", true);
+  assert.equal((await store.get("claude", "subscribed"))!.handledAt, null);
+  assert.equal((await store.active()).length, 1);
+});
+
+test("archive completed includes recovered history without persisting status or hiding newer hook events", async (t) => {
+  const store = tmp(t);
+  for (const sessionId of ["history", "newer-hook", "waiting"]) {
+    await store.record({ agent: "claude", sessionId, type: "started", at: 1 });
+    await store.setSubscribed("claude", sessionId, true);
+  }
+  const observed = (await store.active()).map((s) => ({ ...s, status: "done" as const }));
+  await store.record({ agent: "claude", sessionId: "newer-hook", type: "progress", at: 2 });
+  await store.record({ agent: "claude", sessionId: "waiting", type: "needs_input", at: 1 });
+  assert.equal(await store.archiveDone(3, observed), 1);
+  const history = (await store.get("claude", "history"))!;
+  assert.equal(history.status, "idle", "inferred completion is never written back as a hook event");
+  assert.equal(history.handledAt, 3);
+  assert.deepEqual((await store.active()).map((s) => s.sessionId).sort(), ["newer-hook", "waiting"]);
 });

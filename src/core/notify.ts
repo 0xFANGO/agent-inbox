@@ -14,7 +14,7 @@ export function jumpDeeplink(config: Config, s: Pick<Session, "agent" | "session
  * plain osascript notification is shown.
  */
 export function sendWaitingNotification(config: Config, s: Session): void {
-  if (!config.notifications) return;
+  if (!config.notifications || !s.subscribed || s.status !== "needs_input") return;
   const t = translator(config.language);
   const title = t(s.attention && s.attention !== "input" ? (`attention.${s.attention}` as const) : "notify.waiting");
   const subtitle = s.title || s.sessionId;
