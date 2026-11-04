@@ -1,5 +1,7 @@
+import { findTranscript } from "../sources/locate";
+import { claudeTranscript, questionIds } from "../sources/transcripts";
 import { existsSync, readFileSync } from "node:fs";
-import { CLAUDE_DIR, CLAUDE_SETTINGS } from "../paths";
+import { CLAUDE_DIR, CLAUDE_SETTINGS, CLAUDE_PROJECTS } from "../paths";
 import { shQuote } from "../exec";
 import { activateBundle } from "../terminal";
 import { copyToClipboard, jumpToCli, openUrl } from "../jump";
@@ -10,9 +12,10 @@ import {
   findClaudeDesktopSession,
   readClaudeDesktopSessions,
 } from "../claude-desktop";
-import { endsWithQuestion } from "../status";
+import { asksForInput } from "../status";
 import { lastClaudeAssistant, parseClaude, parseLines, readHeadTail } from "../transcript";
 import { AgentEvent, Attention, Config, Host, Session } from "../types";
+import { hookIdentity, requestIds, questionTool, isAsyncAcknowledgement } from "./events";
 import { Adapter, DetectResult, HookContext, InstallPlan, JumpResult } from "./types";
 import { hasOurHooks, HookEntry, parseJsonFile, stringify, withOurHooks, withoutOurHooks } from "./json";
 
@@ -20,7 +23,18 @@ export const CLAUDE_APP_BUNDLE = CLAUDE_BUNDLE;
 const CLAUDE_APP_PATHS = ["/Applications/Claude.app"];
 
 /** Events this adapter listens to. PostToolUse only moves "needs permission" back to "running". */
-export const CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"] as const;
+export const CLAUDE_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "Notification",
+  "Stop",
+  "StopFailure",
+  "SessionEnd",
+] as const;
 
 function read(path: string): string {
   try {
@@ -79,14 +93,40 @@ export function parseClaudeHook(payload: Record<string, unknown>, env: NodeJS.Pr
     cwd: s(payload.cwd),
     transcriptPath: s(payload.transcript_path),
     at: now,
+    ...hookIdentity(payload, now),
   };
   switch (name) {
     case "SessionStart":
       return { ...base, type: "started" };
     case "UserPromptSubmit":
       return { ...base, type: "progress", title: s(payload.prompt) };
+    case "PreToolUse":
+      return questionTool(s(payload.tool_name))
+        ? {
+            ...base,
+            type: "needs_input",
+            attention: "question",
+            requestIds: questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input),
+          }
+        : { ...base, type: "tool" };
+    case "PermissionRequest":
+      return {
+        ...base,
+        type: "needs_input",
+        attention: questionTool(s(payload.tool_name)) ? "question" : "permission",
+        requestIds: questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input),
+      };
     case "PostToolUse":
-      return { ...base, type: "tool" };
+      return {
+        ...base,
+        type: "tool",
+        requestIds: isAsyncAcknowledgement(payload.tool_response)
+          ? []
+          : questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input),
+      };
+    case "PostToolUseFailure":
+      // A failed tool may be retried by the agent. Its approval/question is no longer pending.
+      return { ...base, type: "tool", requestIds: requestIds(payload), summary: s(payload.error) };
     case "Notification": {
       const message = s(payload.message);
       const attention = attentionFor(s(payload.notification_type), message);
@@ -97,8 +137,7 @@ export function parseClaudeHook(payload: Record<string, unknown>, env: NodeJS.Pr
     case "SubagentStop": {
       if (name === "SubagentStop") return null;
       const last = s(payload.last_assistant_message) || (base.transcriptPath ? lastClaudeAssistant(base.transcriptPath) : "");
-      if (endsWithQuestion(last)) return { ...base, type: "needs_input", attention: "question", summary: last };
-      return { ...base, type: "stopped", summary: last };
+      return { ...base, type: "stopped", attention: asksForInput(last) ? "question" : undefined, summary: last };
     }
     case "StopFailure":
       return { ...base, type: "failed", summary: s(payload.error) || s(payload.message) };
@@ -132,6 +171,14 @@ export async function jumpClaude(session: Session, config: Config, navigation = 
 
 export const claudeAdapter: Adapter = {
   id: "claude",
+  source: {
+    transcript: claudeTranscript,
+    locateTranscript: async (session) =>
+      findTranscript(
+        CLAUDE_PROJECTS,
+        findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions())?.cliSessionId || session.sessionId,
+      ),
+  },
   name: "Claude Code",
   icon: "claude.svg",
 
@@ -140,7 +187,7 @@ export const claudeAdapter: Adapter = {
     const app = CLAUDE_APP_PATHS.some(existsSync);
     let hooked = false;
     try {
-      hooked = hasOurHooks(parseJsonFile(read(CLAUDE_SETTINGS), CLAUDE_SETTINGS));
+      hooked = hasOurHooks(parseJsonFile(read(CLAUDE_SETTINGS), CLAUDE_SETTINGS), CLAUDE_EVENTS);
     } catch {
       hooked = false;
     }

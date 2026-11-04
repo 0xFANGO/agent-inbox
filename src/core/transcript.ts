@@ -1,5 +1,5 @@
 import { closeSync, openSync, readSync, statSync } from "node:fs";
-import { endsWithQuestion } from "./status";
+import { asksForInput } from "./status";
 
 /** Read the first and last chunk of a (potentially huge) JSONL transcript. */
 export function readHeadTail(path: string, headBytes = 64 * 1024, tailBytes = 48 * 1024): { head: string[]; tail: string[]; size: number } {
@@ -78,7 +78,7 @@ function textOf(content: unknown): string {
 }
 
 export interface ClaudeTurnState {
-  status: "done" | "needs_input";
+  status: "ready" | "needs_input";
   attention: "question" | null;
 }
 
@@ -110,9 +110,9 @@ export function claudeTurnState(lines: string[]): ClaudeTurnState | undefined {
         state = undefined;
         continue;
       }
-      state = endsWithQuestion(textOf(message.content))
+      state = asksForInput(textOf(message.content))
         ? { status: "needs_input", attention: "question" }
-        : { status: "done", attention: null };
+        : { status: "ready", attention: null };
     } else if (
       entry.type === "user" ||
       entry.type === "tool" ||

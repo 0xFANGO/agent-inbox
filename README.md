@@ -13,7 +13,7 @@
 | **设置** | 集中管理 Agent 接入、语言、内容搜索、菜单栏显示、恢复终端与系统通知 | ↵ 打开所选设置 |
 | **刷新菜单栏** | 刷新菜单栏中的订阅会话与待输入计数；显示开关位于设置 | — |
 
-「全部会话」中的「已订阅」与状态筛选可重叠。「订阅列表」按待输入、已订阅、已完成三个互斥分区展示；运行中和状态尚未确认的订阅会话归入「已订阅」，运行状态仍用蓝灯表示。「已完成」只包含明确完成的会话，不再有「其他会话」分区。
+「全部会话」中的「已订阅」与状态筛选可重叠。「订阅列表」按待输入、已订阅、已完成三个互斥分区展示；运行中、本轮结束和状态尚未确认的订阅会话归入「已订阅」，运行状态仍用蓝灯表示。「已完成」只包含明确完成的会话，不再有「其他会话」分区。
 
 Raycast 的原生底栏只常驻一个主操作。会话行默认显示「订阅」，「跳转」可直接按 ⌘↵ 执行；点 Actions（⌘K）会同时看到前两项。订阅后列表保持打开，方便连续处理。
 
@@ -34,17 +34,23 @@ Raycast 的原生底栏只常驻一个主操作。会话行默认显示「订阅
 
 - **接入 Agent**：选择 Claude Code / Codex 并执行接入，直接显示进度与成功／失败结果；原配置备份为 `*.agent-inbox.bak`。Codex 首次仍需在应用内执行 `/hooks` 确认。面板不再提供新增 Adapter 入口。
 - **在菜单栏显示订阅会话**：控制菜单栏订阅列表显示。「刷新菜单栏」用于手动更新状态；关闭显示后不加载订阅数据。Raycast 要求菜单栏组件有宿主命令，执行该命令会启动或刷新组件，见 [菜单栏命令生命周期](https://developers.raycast.com/api-reference/menu-bar-commands)。
-- **系统通知**：可在设置面板直接开关；仅已订阅会话进入待输入状态时提醒。
+- **系统通知**：可在设置面板直接开关；仅已订阅会话进入待输入或出现新待处理请求时提醒。已处理、取消订阅、已回答或关闭通知后，尚未投递的提醒会取消。
 
 ## 状态与订阅
 
-- 订阅列表按状态分区；运行中蓝灯，待输入橙灯，已完成和没有实时状态的历史记录不亮。
-- **订阅**：会话进入订阅列表，待输入时弹通知并计入菜单栏数字。**取消订阅**：立即离开订阅列表和通知菜单，不再提醒；仍可在全部会话中找到。
-- **已处理（⌘D）**：会话暂时离开订阅列表和通知菜单，在「全部会话 → 已订阅」里仍能找到；状态再变化时会自动回来。取消后重新订阅也会恢复显示。归档已完成只影响已订阅会话。
-- 只有「等输入」会弹系统通知；「完成」不打扰，只改菜单栏数字。
-- 「需要注意」包括：等输入、等授权、失败、额度用完。另外，回合结束时如果最后一句是问句（`?` / `？`），也算等输入。
+- **运行中**：Agent 正在执行；**待输入**：有待回答、待授权或失败/额度/中断需要处理。
+- **本轮结束**：这一轮已停止，可以继续输入。`Stop`、`agent-turn-complete`、`end_turn` 都不会直接标成任务已完成。
+- **已完成**：只接受来源明确上报的 `completed`。旧版本由 Claude/Codex 停止事件推断的已完成记录，会迁移为本轮结束，保留订阅和已处理标记。
+- **状态未确认**：执行期间进程退出，但没有可靠的正常结束证据。不会按超时猜成已完成。
+- 结构化问题/授权按请求 ID 保存；停止、其他工具活动或新回合不会清除它。只有对应回复、请求取消/结束的解析事件才解除。Codex 桌面异步提问的 `accepted: true` 只代表已发出问题；多问题逐项等待真正回复。
+- 自然语言请求（例如“请确认后继续”“请选择”）只是备用提示，不用来证明任务完成；新用户输入会清除这类提示。
+- **订阅**：进入订阅列表，待处理时提醒。**取消订阅**：停止采集和提醒，仍可在全部会话中找到。
+- **已处理（⌘D）**：暂时离开订阅列表；状态变化或新的待处理请求会恢复显示。重新订阅也会恢复。
+- 订阅列表约 2 秒刷新，全部会话约 5 秒刷新；Raycast 菜单栏遵循宿主的 1 分钟刷新周期。
 
-对于接入 Hook 前就已结束的 Claude 会话，只从 transcript 末尾最多 96 KB 查找明确的 `end_turn`，补齐尚未确定的状态；后续对话或工具活动会使旧结束标记失效。已有运行中、待输入、已完成状态仍以 Hook 为准。恢复结果仅用于显示与操作，不写回 Claude 文件或伪造 Hook 事件，也不启动全文索引。归档已完成同样支持这些历史会话，并跳过已被新 Hook 更新的记录。
+接入时安装用户级后台采集服务 `com.fango.agent-inbox.collector`：只处理已订阅会话。首次分块读取其本地 transcript 恢复未回答请求，不建立全文搜索索引、不补发历史通知；随后保存读取位置并增量采集。单次读取最多 1 MB，超大单行跳过，不加载整份大文件进内存。缺失、未写完整或不支持的记录不能作为完成证据。纯云端、无本地 transcript 且未发 Hook 的会话仍无法可靠监测。
+
+列表的临时状态恢复使用相同来源解析器和状态机，只读末尾最多 96 KB；已有结构化待处理请求不会被不完整的尾部样本清除。后台采集负责完整的订阅状态恢复。两者都不会改写 Agent 自身的对话文件。
 
 ### 订阅当前窗口对话
 
@@ -76,27 +82,35 @@ Claude 桌面端的 `local_*` ID 和 CLI transcript UUID 不同，不能直接�
 
 ## 架构
 
-```
-adapters（采集）   →   核心（SQLite + CLI）   →   视图（Raycast）
-Claude hooks             ~/.sessions/db.sqlite        只读数据库
-Codex notify/hooks       ~/.sessions/bin/agent-inbox.mjs   写操作只有订阅 / 已处理
+```text
+来源插件（Hook / transcript / 自定义事件）
+                   ↓
+       EventEngine → 状态机 → SQLite
+                                ├─ Raycast 列表 / 菜单栏
+                                └─ 持久化通知队列 → 通知渠道插件
+                                                      └─ macOS（已实现）
 ```
 
-- **adapter**（`src/core/adapters/`）：每个 agent 一份，声明四件事：检测、装 hook、定位会话（把 hook 数据转成统一事件）、跳回。接入面板就是从 adapter 列表生成的。
-  - Claude Code：在 `~/.claude/settings.json` 里注册 `SessionStart / UserPromptSubmit / PostToolUse / Notification / Stop / SessionEnd`。
-  - Codex：在 `~/.codex/config.toml` 的 `notify` 里接管回合结束事件。如果原来已经配了 notify 程序，会用 `--then` 继续调用它，不会顶掉。另外在 `~/.codex/hooks.json` 里加 `SessionStart / UserPromptSubmit`，用来显示「运行中」，首次需要在 Codex 里运行 `/hooks` 确认。
-  - 自定义：在 `~/.sessions/adapters/<id>.json` 里放一个清单（写明跳回 URL 或 resume 命令），事件用 `agent-inbox event …` 上报，格式见该目录下的 README。
-- **核心**：用 macOS 自带的 `/usr/bin/sqlite3`，没有原生依赖，也不需要常驻进程。hook 在事件发生时写库并发通知，不轮询。统一事件格式包含：agent、session_id、cwd、事件类型、一句摘要、定位符（tty / tmux pane / 终端 bundle id）。
-- **会话来源**：Claude Hook 优先使用明确的 `CLAUDE_CODE_ENTRYPOINT` 和 transcript 中的来源信息，并通过桌面端本地会话 metadata 关联 `cliSessionId` 与 `local_*` ID，修正历史记录被误判为 CLI 的情况。明确在终端中恢复的会话仍按 CLI 处理。
-- **历史会话**：不会自动导入订阅数据库。打开「全部会话」时扫描 `~/.claude/projects`、`~/.codex/sessions` 和桌面端本地会话 metadata，和 hook 库合并显示。基础信息只采样 transcript 首尾，结果按文件修改时间与大小缓存在 `~/.sessions/cache`；全文索引须另行确认启用。没有本地记录的云端会话不会自动被发现。
-- **语言**：`src/core/i18n.ts`，中英两份词典，键名由 TypeScript 保证一致。语言设置会同步到 `~/.sessions/config.json`，hook 发通知时用同一种语言。
+- **采集来源**：`src/core/adapters/` 声明接入、解析、跳回；可选 `source` 能力包括 transcript 解析、历史发现及定位。`src/core/sources/` 管理分块读取与持久化位置，向 EventEngine 统一上报事件。
+- **Claude Code**：接入会话开始、用户输入、工具调用前后、权限请求、工具失败、通知、回合停止、StopFailure、会话退出。仅观察，不代用户批准。
+- **Codex CLI / 桌面端**：结构化 Hook 配合本地 rollout。保留原有 notify 的 `--then` 转发。支持同步/异步用户问题、真正回复、回合开始/结束/中断。Hook 安装范围依据本机 0.163.0 的可用事件；Codex 自身的 Hook 信任仍由其应用管理。
+- **自定义来源**：JSON manifest 只定义跳回，来源通过 CLI `event` 或 `EventEngine.ingest` 上报。DeepSeek Harness 后续应接宿主的回合、审批、提问/回答事件。完整历史发现/搜索/前台识别仍需分别实现，不能仅靠一个 JSON 自动获得。
+- **核心**：统一事件包含来源、事件 ID、回合 ID、请求 ID。SQLite 使用版本比较重试避免并发 Hook 丢失更新；状态、去重记录与通知队列在同一事务内写入。订阅/已处理操作也参与版本控制。
+- **通知**：`src/core/notifications/` 定义渠道无关消息与 `NotificationChannel.send`。目前仅实现 macOS；Raycast 跳回链接封装在该渠道。飞书/其他网络渠道可独立添加，不修改 Agent parser 或状态机。队列支持租约、超时、退避重试和稳定通知 ID；崩溃恢复是至少一次投递，网络渠道应使用 ID 去重。
+- **后台服务**：独立 CLI 每约 2 秒采集订阅状态并投递通知；Hook 只写入状态/队列，并启动独立投递进程。网络发送不占用 Hook 的等待时间。
+- **数据**：数据库和队列在 `~/.sessions/db.sqlite`；Hook 错误在 `~/.sessions/log.txt`；历史发现缓存与用户主动开启的全文索引仍在 `~/.sessions/cache`。
+
+接口、接入示例与兼容边界见 [扩展接口](docs/integrations.md)。
 
 ### CLI
 
 ```bash
 node ~/.sessions/bin/agent-inbox.mjs list
 node ~/.sessions/bin/agent-inbox.mjs jump claude <session-id>
-node ~/.sessions/bin/agent-inbox.mjs event --agent t3code --session <id> --type needs_input --summary "…"
+node ~/.sessions/bin/agent-inbox.mjs event --agent dsh --session <id> --type needs_input --attention question --request <request-id> --event-id <event-id>
+node ~/.sessions/bin/agent-inbox.mjs event --agent dsh --session <id> --type resolved --request <request-id> --event-id <reply-event-id>
+node ~/.sessions/bin/agent-inbox.mjs watch --once
+node ~/.sessions/bin/agent-inbox.mjs install claude codex --collector
 ```
 
 hook 出错不会影响 agent 本身：异常写进 `~/.sessions/log.txt`，进程照常以 0 退出。

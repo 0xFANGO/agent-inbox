@@ -12,16 +12,32 @@
  * process exits 0.
  */
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
-import { getAdapter } from "../src/core/adapters";
+import { getAdapter, allAdapters } from "../src/core/adapters";
 import { readConfig } from "../src/core/config";
 import { Store } from "../src/core/db";
 import { detach } from "../src/core/exec";
 import { captureLocator } from "../src/core/locate";
-import { sendWaitingNotification } from "../src/core/notify";
+import { EventEngine } from "../src/core/engine";
+import { deliverNotifications } from "../src/core/notifications";
+import { TranscriptCollector } from "../src/core/sources/collector";
+import { installCollector } from "../src/core/service";
+import { applyPlan, resolveNode } from "../src/core/install";
 import { LOG_PATH, ROOT } from "../src/core/paths";
-import { AgentEvent, EventType, Host } from "../src/core/types";
+import { AgentEvent, Attention, EventType, Host } from "../src/core/types";
 
-const EVENT_TYPES: EventType[] = ["started", "progress", "tool", "needs_input", "stopped", "failed", "quota", "ended"];
+const EVENT_TYPES: EventType[] = [
+  "started",
+  "progress",
+  "tool",
+  "needs_input",
+  "resolved",
+  "stopped",
+  "completed",
+  "failed",
+  "quota",
+  "interrupted",
+  "ended",
+];
 
 function log(msg: string) {
   try {
@@ -51,8 +67,8 @@ function parseJson(text: string): Record<string, unknown> {
 
 async function record(ev: AgentEvent) {
   const store = new Store();
-  const t = await store.record(ev);
-  if (t?.notify) sendWaitingNotification(readConfig(), t.next);
+  const t = await new EventEngine(store, readConfig).ingest(ev);
+  if (t?.notify) detach(process.execPath, [process.argv[1], "deliver"]);
   return t;
 }
 
@@ -96,16 +112,27 @@ async function event(args: string[]) {
     return;
   }
   const host = flag(args, "host") as Host | undefined;
+  const attention = flag(args, "attention") as Attention | undefined;
+  if (attention && !["input", "question", "permission", "failed", "quota", "interrupted"].includes(attention)) {
+    process.stderr.write("usage: --attention <input|question|permission|failed|quota|interrupted>\n");
+    process.exitCode = 2;
+    return;
+  }
   await record({
     agent,
     sessionId,
     type,
     host: host === "app" ? "app" : host === "cli" ? "cli" : undefined,
+    attention,
     cwd: flag(args, "cwd") ?? process.cwd(),
     title: flag(args, "title"),
     summary: flag(args, "summary"),
     locator: await captureLocator(process.env),
-    at: Date.now(),
+    at: Number(flag(args, "at")) || Date.now(),
+    source: "external",
+    eventId: flag(args, "event-id"),
+    turnId: flag(args, "turn"),
+    requestIds: flag(args, "request")?.split(","),
   });
 }
 
@@ -135,9 +162,50 @@ async function list(args: string[]) {
   }
 }
 
+async function watch(once = false) {
+  const store = new Store();
+  const collector = new TranscriptCollector(new EventEngine(store, readConfig), allAdapters, log);
+  let stopping = false;
+  const stop = () => {
+    stopping = true;
+  };
+  process.once("SIGTERM", stop);
+  process.once("SIGINT", stop);
+  try {
+    do {
+      try {
+        await collector.poll();
+        await deliverNotifications(store, readConfig());
+      } catch (error) {
+        log(`collector: ${String(error)}`);
+      }
+      if (once || stopping) break;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    } while (!stopping);
+  } finally {
+    process.removeListener("SIGTERM", stop);
+    process.removeListener("SIGINT", stop);
+  }
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   switch (cmd) {
+    case "watch":
+      return watch(rest.includes("--once"));
+    case "deliver":
+      return deliverNotifications(new Store(), readConfig());
+    case "install": {
+      const node = await resolveNode();
+      if (!node) throw new Error("No Node runtime available for hooks");
+      for (const id of rest.filter((arg) => !arg.startsWith("--"))) {
+        const adapter = getAdapter(id);
+        if (!adapter) throw new Error(`Unknown agent: ${id}`);
+        applyPlan(adapter.planInstall({ node, cli: process.argv[1] }));
+      }
+      if (rest.includes("--collector")) await installCollector(node, process.argv[1]);
+      return;
+    }
     case "hook":
       try {
         await hook(rest[0] ?? "", rest.slice(1));

@@ -12,8 +12,8 @@ function historySession(h: HistoryEntry): Session {
 }
 
 /**
- * Hook rows win over metadata; only idle status may recover an explicit terminal state from
- * the transcript. All recovery is for display and leaves the original rows unchanged.
+ * Hook rows win over metadata. Newer transcript evidence can reconcile status through the
+ * same reducer as live events. All recovery here is read-only.
  */
 export function mergeSessions(rows: Session[], history: HistoryEntry[]): Session[] {
   const byKey = new Map<string, Session>();

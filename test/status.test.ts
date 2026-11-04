@@ -31,11 +31,10 @@ test("new session starts idle and gets its title from the first prompt", () => {
   assert.equal(s.cwd, "/p");
 });
 
-test("tool events only resume a session that was waiting", () => {
-  assert.equal(applyEvent(run([ev("progress")]), ev("tool")), null);
-  const waiting = run([ev("progress"), ev("needs_input", { attention: "permission" })]);
-  assert.equal(waiting.attention, "permission");
-  assert.equal(run([ev("tool")], waiting).status, "running");
+test("only a matching tool result resolves a structured permission request", () => {
+  const waiting = run([ev("progress"), ev("needs_input", { attention: "permission", requestIds: ["tool-1"] })]);
+  assert.equal(run([ev("tool", { requestIds: ["other"] })], waiting).status, "needs_input");
+  assert.equal(run([ev("tool", { requestIds: ["tool-1"] })], waiting).status, "running");
 });
 
 test("notify only for subscribed sessions entering needs_input", () => {
@@ -139,7 +138,7 @@ test("all-session filters preserve running discovery and allow subscription/stat
   const sessions: Session[] = [
     { ...run([ev("progress", { sessionId: "running" })]), subscribed: false },
     { ...run([ev("needs_input", { sessionId: "waiting" })]), subscribed: true },
-    { ...run([ev("stopped", { sessionId: "done" })]), subscribed: true },
+    { ...run([ev("completed", { sessionId: "done" })]), subscribed: true },
     { ...run([ev("started", { sessionId: "history" })]), subscribed: true },
     { ...run([ev("needs_input", { sessionId: "unsubscribed-waiting" })]), subscribed: false },
   ];

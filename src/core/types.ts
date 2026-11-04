@@ -1,23 +1,58 @@
 export type AgentId = string; // "claude" | "codex" | custom adapter id
 export type Host = "cli" | "app";
 
-/** Sections are the status: running / needs_input / done. "idle" = opened but nothing asked yet. */
-export type Status = "running" | "needs_input" | "done" | "idle";
+/** A finished turn is ready for another prompt; only an explicit completion is done. */
+export type Status = "running" | "needs_input" | "ready" | "done" | "idle" | "unknown";
 
 /** Why a session needs attention (borrowed from t3code: input / permission / failed / quota). */
-export type Attention = "input" | "question" | "permission" | "failed" | "quota";
+export type Attention = "input" | "question" | "permission" | "failed" | "quota" | "interrupted";
 
 /**
  * Unified event format written by every adapter.
  * - started: a session was opened or resumed
  * - progress: the user sent a prompt, the agent is working
- * - tool: the agent ran a tool (only moves needs_input -> running, e.g. after a permission was granted)
+ * - tool: tool activity; only matching request IDs resolve pending input
  * - needs_input: the agent is blocked on the user
- * - stopped: the agent finished its turn
+ * - stopped: the turn ended; ready for another prompt, not task completion
  * - failed / quota: the turn ended abnormally
- * - ended: the process exited
+ * - completed: explicit task completion from an integration
+ * - resolved: a matching request was answered or canceled
+ * - snapshot: bounded source reconciliation (internal only)
+ * - ended: the process exited; unknown if it was running
  */
-export type EventType = "started" | "progress" | "tool" | "needs_input" | "stopped" | "failed" | "quota" | "ended";
+export type EventType =
+  | "started"
+  | "progress"
+  | "tool"
+  | "needs_input"
+  | "resolved"
+  | "stopped"
+  | "completed"
+  | "failed"
+  | "quota"
+  | "interrupted"
+  | "ended"
+  | "snapshot";
+
+export interface PendingRequest {
+  id: string;
+  attention: Attention;
+  at: number;
+  turnId?: string;
+  /** Text inference / legacy notifications clear on a new user prompt. Structured requests do not. */
+  inferred?: boolean;
+}
+
+export interface SessionState {
+  phase: Exclude<Status, "needs_input">;
+  at: number;
+  source: string;
+  turnId?: string;
+  turnStartedAt?: number;
+  pending: PendingRequest[];
+  /** Prevent a late duplicate request from reopening an answered question. */
+  resolved: string[];
+}
 
 export interface Locator {
   /** Controlling terminal of the agent process, e.g. /dev/ttys003 */
@@ -51,6 +86,13 @@ export interface AgentEvent {
   attention?: Attention;
   locator?: Locator;
   transcriptPath?: string;
+  source?: string;
+  eventId?: string;
+  turnId?: string;
+  requestIds?: string[];
+  inferred?: boolean;
+  snapshot?: SessionState;
+  snapshotComplete?: boolean;
   at: number;
 }
 
@@ -70,6 +112,8 @@ export interface Session {
   startedAt: number;
   updatedAt: number;
   transcriptPath: string;
+  state?: SessionState;
+  revision?: number;
 }
 
 /** A transcript found on disk by the history scan (not in the hook database). */
@@ -91,6 +135,8 @@ export type Language = "zh" | "en";
 export interface Config {
   language: Language;
   notifications: boolean;
+  /** Channel IDs; credentials and transport details belong to the channel implementation. */
+  notificationChannels?: string[];
   /** Whether the subscription list is shown in macOS' menu bar. */
   menuBarEnabled: boolean;
   /** Explicit opt-in to reading and indexing full local conversation bodies. */

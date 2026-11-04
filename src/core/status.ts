@@ -1,4 +1,4 @@
-import { AgentEvent, Attention, Session, Status } from "./types";
+import { AgentEvent, PendingRequest, Session, SessionState } from "./types";
 
 export const TITLE_MAX = 80;
 
@@ -44,38 +44,124 @@ export interface Transition {
   changed: boolean;
 }
 
-function statusFor(ev: AgentEvent, prev: Session | undefined): { status: Status; attention: Attention | null } | null {
-  const prevStatus = prev?.status;
-  switch (ev.type) {
-    case "started":
-      return prev ? { status: prev.status, attention: prev.attention } : { status: "idle", attention: null };
-    case "progress":
-      return { status: "running", attention: null };
-    case "tool":
-      // Only meaningful after a permission prompt was answered.
-      return prevStatus === "needs_input" ? { status: "running", attention: null } : null;
-    case "needs_input":
-      return { status: "needs_input", attention: ev.attention ?? "input" };
-    case "failed":
-      return { status: "needs_input", attention: "failed" };
-    case "quota":
-      return { status: "needs_input", attention: "quota" };
-    case "stopped":
-      return { status: "done", attention: null };
-    case "ended":
-      return prevStatus === "running"
-        ? { status: "done", attention: null }
-        : prev
-          ? { status: prev.status, attention: prev.attention }
-          : null;
-  }
+/** Text is a fallback hint, never evidence that a task is completed. */
+export function asksForInput(text: string | undefined): boolean {
+  const value = (text ?? "").replace(/```[\s\S]*?```/g, "").trim();
+  const tail = value
+    .split(/\n\s*\n/)
+    .slice(-2)
+    .join("\n")
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*[>|]/.test(line))
+    .map((line) => line.trim().replace(/^(?:[-*]\s+|\d+[.)]\s+)?(?:\*\*)?/, ""))
+    .join("\n");
+  return (
+    endsWithQuestion(tail) ||
+    /(?:^|[。！.!]\s*|\n)(?:(?:请|需要你|等你|等待你).{0,16}(?:确认|选择|回复|回答|授权|提供|输入)|(?:是否|要不要|你希望|您希望)[^\n]*[?？]|(?:please (?:confirm|choose|select|reply|provide)|waiting for (?:your|user) (?:input|approval|response)|(?:would you|shall I|should I)[^\n]*\?))/iu.test(
+      tail,
+    )
+  );
 }
 
-/** Pure state machine: apply one event to the previous row. Returns null when nothing should be written. */
+/** Pure reducer. Pending request identity is independent of the current turn's phase. */
 export function applyEvent(prev: Session | undefined, ev: AgentEvent): Transition | null {
-  const st = statusFor(ev, prev);
-  if (!st) return null;
-
+  if (!Number.isFinite(ev.at) || ev.at < 0) return null;
+  const previous: SessionState = prev?.state ?? {
+    phase: prev?.status === "needs_input" ? "running" : (prev?.status ?? "idle"),
+    at: prev && !["idle", "ready"].includes(prev.status) && !ev.snapshotComplete ? prev.updatedAt : 0,
+    source: "legacy",
+    pending:
+      prev?.status === "needs_input" ? [{ id: "legacy", attention: prev.attention ?? "input", at: prev.updatedAt, inferred: true }] : [],
+    resolved: [],
+  };
+  const requestLifecycle = !!ev.requestIds?.length && ["needs_input", "resolved", "tool"].includes(ev.type);
+  if (ev.at < previous.at && ev.type !== "snapshot" && !requestLifecycle) return null;
+  const startsTurn = ev.type === "progress" || (ev.type === "snapshot" && (ev.snapshot?.turnStartedAt ?? 0) > previous.at);
+  const otherTurn = !!ev.turnId && !!previous.turnId && ev.turnId !== previous.turnId && !startsTurn;
+  if (otherTurn && !requestLifecycle && ev.type !== "snapshot") return null;
+  // Legacy notify cannot end an identified, newer turn. The rollout/Stop hook supplies its end.
+  if (ev.source === "notify" && previous.turnId && !ev.turnId && ev.type === "stopped") return null;
+  const state: SessionState = { ...previous, pending: [...previous.pending], resolved: [...previous.resolved] };
+  const ids = ev.requestIds ?? [];
+  switch (ev.type) {
+    case "snapshot": {
+      const observed = ev.snapshot;
+      if (ev.snapshotComplete && !prev?.state) state.pending = [];
+      if (!observed) return null;
+      // Request answers remain valid even when a newer hook has advanced the turn.
+      state.resolved = [...new Set([...state.resolved, ...observed.resolved])].slice(-256);
+      state.pending = state.pending.filter((request) => !state.resolved.includes(request.id));
+      const relevant = observed.pending.filter(
+        (request) => (!request.inferred || request.at >= (previous.turnStartedAt ?? 0)) && !state.resolved.includes(request.id),
+      );
+      if (ev.at < previous.at || otherTurn) {
+        // A stop hook can arrive before the collector sees its unanswered question.
+        // Older snapshots may add that evidence, but cannot roll back the current phase.
+        for (const request of relevant) if (!state.pending.some((r) => r.id === request.id)) state.pending.push(request);
+      } else {
+        state.phase = observed.phase;
+        state.turnId = observed.turnId ?? state.turnId;
+        state.turnStartedAt = observed.turnStartedAt ?? state.turnStartedAt;
+        state.pending = state.pending.filter(
+          (r) => !state.resolved.includes(r.id) && (!r.inferred || r.at >= (observed.turnStartedAt ?? 0)),
+        );
+        for (const request of relevant) if (!state.pending.some((r) => r.id === request.id)) state.pending.push(request);
+      }
+      break;
+    }
+    case "started":
+      break;
+    case "progress":
+      state.phase = "running";
+      state.pending = state.pending.filter((request) => !request.inferred);
+      state.turnId = ev.turnId;
+      state.turnStartedAt = ev.at;
+      break;
+    case "tool":
+    case "resolved": {
+      // Unrelated tool activity must not resolve a prompt/approval.
+      const matched = state.pending.filter((request) => ids.includes(request.id));
+      state.pending = state.pending.filter((request) => !ids.includes(request.id));
+      state.resolved = [...new Set([...state.resolved, ...ids])].slice(-256);
+      if (ev.type === "tool" && ev.at >= previous.at && (!ev.turnId || !previous.turnId || ev.turnId === previous.turnId))
+        state.phase = "running";
+      else if (!matched.length && !ids.length) return null;
+      break;
+    }
+    case "needs_input":
+    case "failed":
+    case "quota":
+    case "interrupted": {
+      const attention = ev.type === "needs_input" ? (ev.attention ?? "input") : ev.type;
+      if (!ids.length && state.pending.some((request) => !request.inferred && request.attention === attention)) break;
+      if (ids.length) state.pending = state.pending.filter((request) => !request.inferred || request.attention !== attention);
+      const requestIds = ids.length ? ids : [`hint:${attention}`];
+      for (const id of requestIds) {
+        if (state.resolved.includes(id) || state.pending.some((request) => request.id === id)) continue;
+        state.pending.push({ id, attention, at: ev.at, turnId: ev.turnId, inferred: ev.inferred ?? !ids.length });
+      }
+      if (ev.type !== "needs_input") state.phase = "unknown";
+      break;
+    }
+    case "stopped":
+      state.phase = "ready";
+      if (ev.attention === "question" && state.pending.length === 0) {
+        state.pending.push({ id: "hint:question", attention: "question", at: ev.at, turnId: ev.turnId, inferred: true });
+      }
+      break;
+    case "completed":
+      state.phase = "done";
+      break;
+    case "ended":
+      if (state.phase === "running") state.phase = "unknown";
+      break;
+  }
+  state.at = Math.max(previous.at, ev.at);
+  state.source = ev.source ?? "external";
+  if (!state.turnId && ev.turnId && ev.at >= previous.at) state.turnId = ev.turnId;
+  const pending = [...state.pending].sort((a, b) => priority(b) - priority(a) || b.at - a.at);
+  const status = pending.length ? "needs_input" : state.phase;
+  const attention = pending[0]?.attention ?? null;
   const base: Session = prev ?? {
     agent: ev.agent,
     sessionId: ev.sessionId,
@@ -92,25 +178,27 @@ export function applyEvent(prev: Session | undefined, ev: AgentEvent): Transitio
     updatedAt: ev.at,
     transcriptPath: "",
   };
-
-  const statusChanged = base.status !== st.status || base.attention !== st.attention;
+  const newRequest = state.pending.some((r) => !previous.pending.some((p) => p.id === r.id || (p.inferred && p.attention === r.attention)));
+  const statusChanged = base.status !== status || base.attention !== attention || newRequest;
   const next: Session = {
     ...base,
     host: ev.host ?? base.host,
     cwd: ev.cwd || base.cwd,
     title: base.title || toTitle(ev.title),
-    summary: ev.summary !== undefined && ev.summary !== "" ? lastSentence(ev.summary) : base.summary,
-    status: st.status,
-    attention: st.attention,
+    summary: ev.summary ? lastSentence(ev.summary) : base.summary,
+    status,
+    attention,
+    state,
     locator: { ...base.locator, ...stripEmpty(ev.locator) },
     transcriptPath: ev.transcriptPath || base.transcriptPath,
-    // A status change brings a handled session back into the inbox.
     handledAt: statusChanged ? null : base.handledAt,
-    updatedAt: ev.at,
+    updatedAt: Math.max(base.updatedAt, ev.at),
   };
+  return { next, notify: next.subscribed && status === "needs_input" && statusChanged, changed: true };
+}
 
-  const notify = next.subscribed && st.status === "needs_input" && statusChanged;
-  return { next, notify, changed: true };
+function priority(request: PendingRequest): number {
+  return request.attention === "permission" ? 3 : request.inferred ? 1 : 2;
 }
 
 function stripEmpty<T extends object>(o: T | undefined): Partial<T> {

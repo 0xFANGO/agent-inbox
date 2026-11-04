@@ -46,7 +46,8 @@ export function withOurHooks(file: HooksFile, ours: Record<string, HookEntry>): 
   return { ...base, hooks };
 }
 
-export function hasOurHooks(file: HooksFile): boolean {
+export function hasOurHooks(file: HooksFile, events?: readonly string[]): boolean {
+  if (events) return events.every((event) => Array.isArray(file.hooks?.[event]) && file.hooks![event].some(isOurs));
   return Object.values(file.hooks ?? {}).some((entries) => Array.isArray(entries) && entries.some(isOurs));
 }
 

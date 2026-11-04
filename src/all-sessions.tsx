@@ -1,3 +1,4 @@
+import { statusLabel } from "./core/format";
 import { Action, ActionPanel, Color, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
 import { useEffect, useMemo, useState } from "react";
@@ -46,6 +47,13 @@ export default function AllSessions() {
     [],
     { keepPreviousData: true },
   );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void revalidate();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [revalidate]);
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(search), 180);
@@ -248,7 +256,8 @@ function Row(props: {
   const accessories: List.Item.Accessory[] = [];
   if (s.subscribed) accessories.push({ icon: { source: Icon.Bell, tintColor: Color.Yellow }, tooltip: t("section.subscribed") });
   const dot = statusDot(s);
-  if (dot) accessories.push({ icon: dot });
+  if (dot) accessories.push({ icon: dot, tooltip: statusLabel(s, t) });
+  if (s.status === "ready" || s.status === "unknown") accessories.push({ text: statusLabel(s, t) });
   if (!showDetail) accessories.push({ text: rowTime(s, t) });
   if (props.match) accessories.push({ icon: Icon.MagnifyingGlass, tooltip: t("search.contentMatch") });
   const subtitle = [hostTag(s.host), project, props.match || s.summary].filter(Boolean).join(" · ");

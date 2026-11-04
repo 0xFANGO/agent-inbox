@@ -48,3 +48,11 @@ export function hostTag(host: Host): string {
 export function agentHostLabel(agent: string, host: Host, t: Translator): string {
   return `${agentName(agent, t)} · ${host === "app" ? t("host.app") : t("host.cli")}`;
 }
+
+export function statusLabel(session: Session, t: Translator): string {
+  if (session.status === "running") return t("section.running");
+  if (session.status === "done") return t("section.done");
+  if (session.status === "needs_input")
+    return session.attention && session.attention !== "input" ? t(`attention.${session.attention}`) : t("section.needsInput");
+  return t(`status.${session.status}`);
+}

@@ -1,4 +1,5 @@
 import { AgentEvent, Config, Host, Session } from "../types";
+import { SourceCapabilities } from "../sources/types";
 
 export interface FileChange {
   path: string;
@@ -49,6 +50,7 @@ export interface Adapter {
   name: string;
   /** Raycast asset for the logo. */
   icon?: string;
+  source?: SourceCapabilities;
   detect(): DetectResult;
   planInstall(ctx: HookContext): InstallPlan;
   planUninstall(): InstallPlan;

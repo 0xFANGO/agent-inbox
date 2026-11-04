@@ -1,3 +1,4 @@
+import { statusLabel } from "./core/format";
 import {
   Action,
   ActionPanel,
@@ -38,6 +39,12 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
   const { t, config } = locale();
   const [showDetail, setShowDetail] = useState(false);
   const { data, isLoading, revalidate, mutate } = useCachedPromise(activeSessions, [], { keepPreviousData: true });
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void revalidate();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [revalidate]);
   const connected = useCachedPromise(async () => allAdapters().some((a) => a.detect().hooked), []);
 
   useConfirmJump(props.launchContext, config, t);
@@ -143,7 +150,8 @@ function InboxItem(props: {
   const dot = statusDot(s);
   const accessories: List.Item.Accessory[] = [];
   if (!showDetail) accessories.push({ text: hostTag(s.host) });
-  if (dot) accessories.push({ icon: dot });
+  if (dot) accessories.push({ icon: dot, tooltip: statusLabel(s, t) });
+  if (s.status === "ready" || s.status === "unknown") accessories.push({ text: statusLabel(s, t) });
   if (!showDetail) accessories.push({ text: rowTime(s, t) });
 
   return (
