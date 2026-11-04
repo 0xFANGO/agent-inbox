@@ -7,6 +7,21 @@ import { tempDir } from "./helpers";
 
 const CLI = join(process.cwd(), "assets", "agent-inbox.mjs");
 
+test("CLI help succeeds without initializing state or requiring sqlite", (t) => {
+  const root = tempDir(t);
+  const state = join(root, "unused-state");
+  const env = { ...process.env, AGENT_INBOX_HOME: state, AGENT_INBOX_SQLITE: join(root, "missing-sqlite") };
+  for (const args of [["--help"], ["-h"], ["help"]]) {
+    const result = spawnSync(process.execPath, [CLI, ...args], { env, encoding: "utf8", timeout: 5000 });
+    assert.equal(result.status, 0, args.join(" "));
+    assert.equal(result.stderr, "");
+    assert.match(result.stdout, /list \[--json\]/);
+    assert.match(result.stdout, /watch \[--once\]/);
+    assert.match(result.stdout, /install <agent/);
+    assert.equal(existsSync(state), false, "help must not create config, logs or a database");
+  }
+});
+
 test("hook CLI writes events into the database (built bundle)", (t) => {
   const home = tempDir(t);
   const env = {

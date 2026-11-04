@@ -1,6 +1,6 @@
 # 测试记录
 
-验证日期：2026-11-04（Asia/Shanghai）。环境：macOS、Node.js 24.22.1、npm 11.19.1、系统 SQLite 3.51.0。
+验证日期：2026-11-04（Asia/Shanghai）。环境：macOS、Node.js 22.22.2 / 24.22.1 / 26.13.0、npm 11.19.1、系统 SQLite 3.51.0。
 
 ## 自动化检查
 
@@ -8,13 +8,23 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| 单元与集成测试 | 147 / 147 通过，无跳过 |
+| 单元与集成测试 | 148 / 148 通过，无跳过 |
 | TypeScript | `tsc --noEmit` 通过 |
 | ESLint 与格式 | `src`、`cli`、`test` 全部通过 |
 | 构建 | CLI 打包与全部 4 个 Raycast 命令构建通过 |
 | Diff | `git diff --check` 通过 |
 
 `npm test` 先重新生成 CLI bundle，保证端到端测试验证当前源码。数据库、安装目标和配置使用临时目录并自动清理。终端和桌面跳转的自动化测试注入导航接口，不打开真实终端或发送消息。
+
+## 开源准备（2026-11-04）
+
+- Node 24.22.1 的 `npm run check` 通过。独立临时副本使用 `npm ci` 验证锁文件安装，并在 Node 22.22.2 与 26.13.0 上通过完整检查；每个环境均为 148 项测试，无失败或跳过。
+- CLI 帮助回归先在旧版本复现 `--help` 返回 2 的问题，修复后验证 `--help` / `-h` / `help` 成功、无 stderr，且 SQLite 不可用时仍不创建任何状态文件。
+- 执行 [CLI 文档](docs/cli.md) 中的隔离示例，得到 `Demo session: needs_input`。检查文档相对文件链接和 README / package.json / 产品说明的一句话定位一致。
+- `npm run bundle` 生成 `dist/agent-inbox.rayext`。检查归档完整性、四个命令、辅助 CLI、图标和 MIT 许可证；移除含构建机路径的 source map，不包含测试、文档、技能或 Git 目录。归档保留 Raycast 所需的共享依赖配置和运行时依赖。
+- `npm run lint` 的图标、技能、ESLint 和 Prettier 校验通过；Store 作者 `0xFango` 仍返回 HTTP 404，清单校验因此失败。
+- macOS CI 工作流已编写，尚未推送或在 GitHub 运行。未修改仓库设置、可见性、真实 Hook、订阅或通知设置，未执行发布。
+- 本轮未重新验收 Raycast 原生界面、系统通知点击与真实终端跳转，也未完成全 Git 历史凭据扫描或第三方素材权利核对。公开前待办见 [发布准备](docs/releasing.md)。
 
 ## 标题同步（2026-11-04）
 

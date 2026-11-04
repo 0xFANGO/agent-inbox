@@ -2580,6 +2580,33 @@ var EVENT_TYPES = [
   "interrupted",
   "ended"
 ];
+var HELP = `Agent Inbox \u2014 subscribe to agent sessions and return when they need you.
+
+usage: agent-inbox <command> [options]
+
+Commands:
+  list [--json]                         Show up to 100 recorded sessions
+  jump <agent> <session>                 Return to a recorded session
+  event --agent <id> --session <id> --type <type> [options]
+                                        Record an external event
+  hook <claude|codex>                    Read a hook payload from stdin
+  hook codex-notify [--then <cmd...>] <json>
+                                        Record and forward Codex notify
+  watch [--once]                        Collect subscribed sessions and deliver notifications
+  deliver                               Deliver queued notifications
+  install <agent...> [--collector]       Install hooks and optionally the macOS collector
+  version                               Print the internal CLI protocol revision
+  help, --help, -h                       Show this help without creating state
+
+Event types: ${EVENT_TYPES.join(", ")}
+Event options: --title, --summary, --cwd, --host cli|app, --attention,
+               --event-id, --turn, --request <id[,id...]>, --at <epoch-ms>
+Attention: input, question, permission, failed, quota, interrupted
+
+Data directory: AGENT_INBOX_HOME (default: ~/.sessions)
+Install modifies agent configuration; watch and deliver may send notifications.
+Setup, isolated examples and option defaults: docs/cli.md in the repository.
+`;
 function log(msg) {
   try {
     mkdirSync6(ROOT, { recursive: true });
@@ -2726,6 +2753,11 @@ async function watch(once = false) {
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   switch (cmd) {
+    case "help":
+    case "--help":
+    case "-h":
+      process.stdout.write(HELP);
+      return;
     case "watch":
       return watch(rest.includes("--once"));
     case "deliver":
@@ -2759,7 +2791,7 @@ async function main() {
       process.stdout.write("agent-inbox 1\n");
       return;
     default:
-      process.stderr.write("usage: agent-inbox <hook|event|jump|list> \u2026\n");
+      process.stderr.write("usage: agent-inbox <command> [options]\nRun agent-inbox --help for commands and options.\n");
       process.exitCode = 2;
   }
 }
