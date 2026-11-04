@@ -1,7 +1,7 @@
 import { selectWindowDocument } from "./focus-selection";
 
 /** Native AX attributes retain CFURL values that System Events cannot serialize. */
-export function nativeFocusScript(bundleId: string): string {
+export function nativeFocusScript(bundleId: string, mode: "focused" | "windows" = "focused"): string {
   return `
 ObjC.import("AppKit");
 ObjC.import("ApplicationServices");
@@ -24,12 +24,7 @@ function text(value) {
   const unwrapped = ObjC.unwrap(value);
   return typeof unwrapped === "string" ? unwrapped : "";
 }
-function readWindow() {
-  const apps = $.NSRunningApplication.runningApplicationsWithBundleIdentifier($(bundle));
-  if (!apps.count) return null;
-  const app = $.AXUIElementCreateApplication(apps.objectAtIndex(0).processIdentifier);
-  const window = attribute(app, "AXFocusedWindow");
-  if (!window) return null;
+function readWindow(window) {
   let result = { title: text(attribute(window, "AXTitle")), url: text(attribute(window, "AXDocument")) };
   const queue = [{ node: window, depth: 0 }];
   let visited = 0;
@@ -49,6 +44,24 @@ function readWindow() {
   }
   return result;
 }
-JSON.stringify(readWindow());
+function readApplication() {
+  const apps = $.NSRunningApplication.runningApplicationsWithBundleIdentifier($(bundle));
+  if (!apps.count) return ${mode === "windows" ? "[]" : "null"};
+  const app = $.AXUIElementCreateApplication(apps.objectAtIndex(0).processIdentifier);
+  ${
+    mode === "windows"
+      ? `
+  const windows = attribute(app, "AXWindows");
+  const results = [];
+  if (windows) for (let i = 0; i < windows.count && i < 12; i++) results.push(readWindow(windows.objectAtIndex(i)));
+  return results;
+  `
+      : `
+  const window = attribute(app, "AXFocusedWindow");
+  return window ? readWindow(window) : null;
+  `
+  }
+}
+JSON.stringify(readApplication());
 `;
 }

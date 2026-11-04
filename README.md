@@ -1,140 +1,96 @@
 # Agent Inbox
 
-一个轻量的 Raycast 插件，用来管你自己开的 Claude Code / Codex 会话。它不托管、不派发任务，只做三件事：**看得到、分得清、跳得回**。
+订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。
 
-> 设计与范围见 [issue #1](https://github.com/0xFANGO/agent-inbox/issues/1)。
+一个 macOS Raycast 扩展，适合同时处理多个 AI 编程会话的开发者。把关心的会话加入订阅列表，在 Agent 等待回答或授权时收到提醒，再回到对应的桌面对话或终端继续工作。
 
-## 命令
+使用流程示意：
 
-| 命令 | 作用 | 快捷键 |
-|---|---|---|
-| **全部会话** | 默认展示全部会话，顶部筛选「已订阅 / 待输入 / 已完成」。列表首项为「订阅当前窗口对话」 | ↵ 或 ⌘S 订阅/取消订阅 · ⌘↵ 跳转 · ⌘I 详情 · ⌘R 刷新 |
-| **订阅列表** | 只显示已订阅且未标记已处理的会话，分为待输入 / 已订阅 / 已完成 | ↵ 跳转 · ⌘D 已处理 · ⌘S 取消订阅 · ⌘I 详情 · ⌘⇧D 归档已完成 |
-| **设置** | 集中管理 Agent 接入、语言、内容搜索、菜单栏显示、恢复终端与系统通知 | ↵ 打开所选设置 |
-| **刷新菜单栏** | 刷新菜单栏中的订阅会话与待输入计数；显示开关位于设置 | — |
-
-「全部会话」中的「已订阅」与状态筛选可重叠。「订阅列表」按待输入、已订阅、已完成三个互斥分区展示；运行中、本轮结束和状态尚未确认的订阅会话归入「已订阅」，运行状态仍用蓝灯表示。「已完成」只包含明确完成的会话，不再有「其他会话」分区。
-
-Raycast 的原生底栏只常驻一个主操作。会话行默认显示「订阅」，「跳转」可直接按 ⌘↵ 执行；点 Actions（⌘K）会同时看到前两项。订阅后列表保持打开，方便连续处理。
-
-返回上一级可按 Mac 的 **⌫ Delete**：搜索框为空时返回，有内容时先删字；Esc 仍遵循 Raycast 自身设置。接入面板通过原生导航栈返回。
-
-### 搜索
-
-默认只搜索会话标题、项目与会话 ID，**不自动加载或索引完整对话**。需要搜索正文时，点击搜索结果底部的「启用会话内容搜索」，或在设置中开启「会话全文搜索」，确认读取范围与本地索引开销后才开始。取消确认不会启用；关闭设置会中止索引并停止检索内容，已有索引留在本机缓存目录且不会自动更新。
-
-启用后可检索完整的用户与 Agent 消息，支持中文短词、大小写归一和多个关键词；工具输出、思考过程和系统注入内容不纳入正文索引。首次流式读取本机记录，随后仅重新索引修改时间或大小变化的文件。查询使用本地 SQLite 索引，不逐次扫描原文件，也不会上传对话。索引过程中标题搜索仍可用；退出列表、刷新或关闭内容搜索可正常中止读取。
-
-本机样本为 237 个文件、约 1.39 GB 原始记录：首次索引约 4.38 秒、索引约 17.9 MB；热刷新约 44 ms，查询约 3–9 ms，另有 180 ms 输入防抖。冷索引峰值进程内存约 308 MB；不同机器和记录量会有差异。索引位于 `~/.sessions/cache/conversation-search.sqlite`，只有云端而没有本地记录的对话内容不能检索。
-
-### 偏好设置
-
-- **语言 / Language**：在「设置 → 语言 / Language」打开扩展偏好，可选中文（默认）或 English。界面和系统通知都会切换。
-- **默认终端**：在「设置 → 默认终端」中按 ↵ 打开扩展设置，可选 Terminal / iTerm2 / Ghostty。优先跳回原会话所在的窗口；无法定位原窗口时，才在所选终端执行 `claude --resume <id>` 或 `codex resume <id>`。
-
-- **接入 Agent**：选择 Claude Code / Codex 并执行接入，直接显示进度与成功／失败结果；原配置备份为 `*.agent-inbox.bak`。Codex 首次仍需在应用内执行 `/hooks` 确认。面板不再提供新增 Adapter 入口。
-- **在菜单栏显示订阅会话**：控制菜单栏订阅列表显示。「刷新菜单栏」用于手动更新状态；关闭显示后不加载订阅数据。Raycast 要求菜单栏组件有宿主命令，执行该命令会启动或刷新组件，见 [菜单栏命令生命周期](https://developers.raycast.com/api-reference/menu-bar-commands)。
-- **系统通知**：可在设置面板直接开关；仅已订阅会话进入待输入或出现新待处理请求时提醒。已处理、取消订阅、已回答或关闭通知后，尚未投递的提醒会取消。
-
-## 状态与订阅
-
-- **运行中**：Agent 正在执行；**待输入**：有待回答、待授权或失败/额度/中断需要处理。
-- **本轮结束**：这一轮已停止，可以继续输入。`Stop`、`agent-turn-complete`、`end_turn` 都不会直接标成任务已完成。
-- **已完成**：只接受来源明确上报的 `completed`。旧版本由 Claude/Codex 停止事件推断的已完成记录，会迁移为本轮结束，保留订阅和已处理标记。
-- **状态未确认**：执行期间进程退出，但没有可靠的正常结束证据。不会按超时猜成已完成。
-- 结构化问题/授权按请求 ID 保存；停止、其他工具活动或新回合不会清除它。只有对应回复、请求取消/结束的解析事件才解除。Codex 桌面异步提问的 `accepted: true` 只代表已发出问题；多问题逐项等待真正回复。
-- 自然语言请求（例如“请确认后继续”“请选择”）只是备用提示，不用来证明任务完成；新用户输入会清除这类提示。
-- **订阅**：进入订阅列表，待处理时提醒。**取消订阅**：停止采集和提醒，仍可在全部会话中找到。
-- **已处理（⌘D）**：暂时离开订阅列表；状态变化或新的待处理请求会恢复显示。重新订阅也会恢复。
-- 订阅列表约 2 秒刷新，全部会话约 5 秒刷新；Raycast 菜单栏遵循宿主的 1 分钟刷新周期。
-
-接入时安装用户级后台采集服务 `com.fango.agent-inbox.collector`：只处理已订阅会话。首次分块读取其本地 transcript 恢复未回答请求，不建立全文搜索索引、不补发历史通知；随后保存读取位置并增量采集。单次读取最多 1 MB，超大单行跳过，不加载整份大文件进内存。缺失、未写完整或不支持的记录不能作为完成证据。纯云端、无本地 transcript 且未发 Hook 的会话仍无法可靠监测。
-
-列表的临时状态恢复使用相同来源解析器和状态机，只读末尾最多 96 KB；已有结构化待处理请求不会被不完整的尾部样本清除。后台采集负责完整的订阅状态恢复。两者都不会改写 Agent 自身的对话文件。
-
-### 订阅当前窗口对话
-
-从目标 Agent 窗口唤出 Raycast，打开「全部会话」，执行首项「订阅当前窗口对话」。插件关闭 Raycast 后识别前台窗口，再读取会话，按以下信息匹配：
-
-- **Claude / Codex 桌面端**：优先通过原生 Accessibility 读取前台窗口文档 URL 中的会话 ID。URL 不能标识会话时使用当前文档的唯一标题；原生读取失败时才降级到 System Events。只有唯一匹配才订阅；Claude 的标题匹配仅接受以 `- Claude Code` 结尾的页面。普通 Claude 聊天、主页、标题有歧义或缺少窗口信息时，不会按最近活动时间猜一个会话。
-- **Terminal / iTerm2 / Ghostty 1.4**：读取选中标签页或焦点分屏的 tty。tmux 会同时匹配前台客户端 tty、服务器 socket 和 pane，避免订阅后台的其他会话。没有可靠 tty 或出现多个匹配时会提示无法识别。
-
-Codex 额外保留原生窗口标题，避免 Electron 的通用页面标题覆盖实际会话名；支持外部 thread 链接以及本地、独立窗口和 hash 会话路由。按实际表结构读取本地 `state*.sqlite` 的会话名称，不固定数据库版本；不支持时退到 `session_index.jsonl`。实际窗口匹配成功后才纠正旧记录的 CLI/App 来源，同时保留 Hook 的实时状态。关闭 Raycast 后会短暂等待焦点恢复，不按最近活动时间猜测。
-
-Claude 的本地 metadata 还用于把 `bridgeSessionIds` 关联到 `local_*` 和 CLI 会话 ID；兼容旧版字符串与新版数组，`session_*` / `cse_*` 的同后缀 ID 按同一映射处理。多个本地记录指向同一 ID 时拒绝匹配。纯云端页面的 `session_*` ID 也能读取，但没有对应本地记录时，不能自动匹配到 Hook 会话或获得实时通知，也不会直接订阅未知云端会话。
-
-CLI 的「订阅当前窗口对话」需要先接入 Hook，并由 Hook 采集原会话的 tty / tmux 定位信息。仅扫描到的历史文件通常不含这些信息，可在「全部会话」中手动选择并订阅。
-
-之前已切换 Claude 本地与云端会话，只读验证原生 `AXURL` + `CFURLGetString` 能取得当前 `local_*` 和 `session_*` ID。旧 System Events 对同一 Claude 窗口读取 URL 时返回「AppleEvent 处理程序失败」，被吞掉的异常曾导致空 URL。本轮 Codex 修复依据安装包静态证据、本地目录和回归测试；客户端禁止直接操作 Codex 自身窗口，尚未完成当前版本的实机订阅／跳转验收，见 [Codex 调查记录](docs/codex-session-investigation.md)。窗口信息和终端 tty 查询依赖 macOS 自动化/辅助功能权限；不支持相关接口或权限不足时，可以在「全部会话」中手动选择并订阅。
-
-## 跳回
-
-| 来源 | 跳回方式 | 兜底 |
-|---|---|---|
-| Claude 桌面端 | 将 CLI transcript ID 映射到桌面端 `local_*` ID，再打开 `claude://code/continue?session=<local_id>` | 打开 Claude 并复制会话 ID，提示需要手动定位 |
-| Claude CLI | 聚焦 tmux pane，或按 tty 匹配 Terminal / iTerm2 标签页、Ghostty 1.4 的终端分屏；旧版或不支持脚本的终端只能激活应用 | 在所选终端执行 `claude --resume <id>` |
-| Codex CLI | 同上 | 新开终端执行 `codex resume <id>` |
-| Codex 桌面端 | `codex://threads/<threadId>`（有 `hostId` 时一并带上） | `codex://launch` 并把 ID 复制到剪贴板 |
-
-Claude 桌面端的 `local_*` ID 和 CLI transcript UUID 不同，不能直接把 CLI UUID 放进桌面端的 continue 链接。本机已验证映射后能跳回对应的 Claude Code 对话。仅激活应用或复制 ID 是兜底行为，不代表已精确到达目标会话。
-
-点通知会打开 `raycast://…/inbox?context=…`，Raycast 先弹窗确认（↵ 跳回，esc 取消）。在订阅列表里按 ↵ 直接跳，不弹确认。点通知跳回需要先装 `terminal-notifier`（`brew install terminal-notifier`），没装的话通知只能看、不能点。
-
-## 架构
-
-```text
-来源插件（Hook / transcript / 自定义事件）
-                   ↓
-       EventEngine → 状态机 → SQLite
-                                ├─ Raycast 列表 / 菜单栏
-                                └─ 持久化通知队列 → 通知渠道插件
-                                                      └─ macOS（已实现）
+```mermaid
+flowchart LR
+    A[Claude Code / Codex] --> B[订阅关心的会话]
+    B --> C[待输入提醒]
+    C --> D[跳回原对话]
+    D --> E[处理后继续工作]
 ```
 
-- **采集来源**：`src/core/adapters/` 声明接入、解析、跳回；可选 `source` 能力包括 transcript 解析、历史发现及定位。`src/core/sources/` 管理分块读取与持久化位置，向 EventEngine 统一上报事件。
-- **Claude Code**：接入会话开始、用户输入、工具调用前后、权限请求、工具失败、通知、回合停止、StopFailure、会话退出。仅观察，不代用户批准。
-- **Codex CLI / 桌面端**：结构化 Hook 配合本地 rollout。保留原有 notify 的 `--then` 转发。支持同步/异步用户问题、真正回复、回合开始/结束/中断。Hook 安装范围依据本机 0.163.0 的可用事件；Codex 自身的 Hook 信任仍由其应用管理。
-- **自定义来源**：JSON manifest 只定义跳回，来源通过 CLI `event` 或 `EventEngine.ingest` 上报。DeepSeek Harness 后续应接宿主的回合、审批、提问/回答事件。完整历史发现/搜索/前台识别仍需分别实现，不能仅靠一个 JSON 自动获得。
-- **核心**：统一事件包含来源、事件 ID、回合 ID、请求 ID。SQLite 使用版本比较重试避免并发 Hook 丢失更新；状态、去重记录与通知队列在同一事务内写入。订阅/已处理操作也参与版本控制。
-- **通知**：`src/core/notifications/` 定义渠道无关消息与 `NotificationChannel.send`。目前仅实现 macOS；Raycast 跳回链接封装在该渠道。飞书/其他网络渠道可独立添加，不修改 Agent parser 或状态机。队列支持租约、超时、退避重试和稳定通知 ID；崩溃恢复是至少一次投递，网络渠道应使用 ID 去重。
-- **后台服务**：独立 CLI 每约 2 秒采集订阅状态并投递通知；Hook 只写入状态/队列，并启动独立投递进程。网络发送不占用 Hook 的等待时间。
-- **数据**：数据库和队列在 `~/.sessions/db.sqlite`；Hook 错误在 `~/.sessions/log.txt`；历史发现缓存与用户主动开启的全文索引仍在 `~/.sessions/cache`。
+- **找到会话**：搜索标题、项目和会话 ID，订阅历史会话或当前窗口对话。
+- **知道谁在等你**：订阅列表和菜单栏显示状态，系统通知提醒需要处理的请求。
+- **回到工作上下文**：定位桌面对话、终端标签或 tmux pane；无法精确定位时提示恢复方式。
+- **按需搜索正文**：默认不建全文索引；确认开启后在本机检索用户与 Agent 的消息。
 
-接口、接入示例与兼容边界见 [扩展接口](docs/integrations.md)。
+## 快速开始
 
-### CLI
+需要 **macOS、Raycast、Node.js ≥ 22.22.2、npm**，以及已使用的 Claude Code 或 Codex。可点击通知另需 `terminal-notifier`。
 
-```bash
-node ~/.sessions/bin/agent-inbox.mjs list
-node ~/.sessions/bin/agent-inbox.mjs jump claude <session-id>
-node ~/.sessions/bin/agent-inbox.mjs event --agent dsh --session <id> --type needs_input --attention question --request <request-id> --event-id <event-id>
-node ~/.sessions/bin/agent-inbox.mjs event --agent dsh --session <id> --type resolved --request <request-id> --event-id <reply-event-id>
-node ~/.sessions/bin/agent-inbox.mjs watch --once
-node ~/.sessions/bin/agent-inbox.mjs install claude codex --collector
+当前提供源码安装；仓库尚未公开时需要 GitHub 访问权限。目前没有 GitHub Release 下载。
+
+```sh
+git clone https://github.com/0xFANGO/agent-inbox.git
+cd agent-inbox
+npm ci
+npm run dev
 ```
 
-hook 出错不会影响 agent 本身：异常写进 `~/.sessions/log.txt`，进程照常以 0 退出。
+1. 在 Raycast 搜索 **Agent Inbox**，打开 **设置 → 接入 Agent**，接入 Claude Code 或 Codex。Codex 首次需在客户端执行 `/hooks` 确认。
+2. 打开 **全部会话**，选中一个会话，按回车订阅。
+3. 打开 **订阅列表**，查看状态并按回车跳回。支持监测的会话在产生新待处理请求时会提醒；首次恢复历史状态不补发通知。
 
-## 开发
+接入会安装本地 Hook 和用户级后台采集器，修改前备份已有配置。权限、可点击通知、数据位置和卸载步骤见 [安装指南](docs/setup.md)。
 
-```bash
-npm install
-npm run dev        # 先打包 CLI 到 assets/agent-inbox.mjs，再 ray develop
-npm test           # 先重新打包 CLI，再运行状态机、数据库、adapter、历史扫描、安装与 CLI 端到端测试
-npm run typecheck
-npm run lint:code  # ESLint + 源码和测试的格式检查，不访问 Raycast Store
-npm run check      # 一次运行测试、类型检查、代码检查和 Raycast 构建
-npm run lint       # 额外校验 Raycast 清单、作者账号和图标，需要联网
+## 日常使用
+
+| Raycast 命令 | 用途                                       | 常用操作                         |
+| ------------ | ------------------------------------------ | -------------------------------- |
+| 全部会话     | 搜索与筛选会话，订阅当前窗口               | ↵ / ⌘S 订阅 · ⌘↵ 跳回 · ⌘I 详情  |
+| 订阅列表     | 处理关心的会话                             | ↵ 跳回 · ⌘D 已处理 · ⌘S 取消订阅 |
+| 设置         | 接入 Agent，管理语言、终端、全文搜索与通知 | ↵ 打开设置                       |
+| 刷新菜单栏   | 刷新订阅会话与待输入数量                   | 显示开关位于设置                 |
+
+**待输入**包括问题、授权，以及需要处理的失败、额度或中断。**本轮结束**表示 Agent 停止了这一轮；只有明确的完成事件才标记为**已完成**。标记已处理会暂时隐藏会话，状态变化或新请求会让它重新出现。
+
+完整快捷键、状态语义、标题同步和跳转兜底见 [使用指南](docs/usage.md)。
+
+## 支持范围
+
+| 来源                       | 当前能力                                       | 边界                                                                 |
+| -------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
+| Claude Code CLI / 本地桌面 | 历史发现、订阅、Hook 与本地记录状态采集、跳回  | 原窗口定位依赖权限与可用的会话映射                                   |
+| Codex CLI / 桌面           | 历史发现、订阅、Hook 与本地 rollout 采集、跳回 | 客户端数据格式可能变化；当前桌面流程的完整实机验收仍待完成           |
+| Claude Code 纯云端         | 按明确窗口 ID 订阅和跳回，同步已打开窗口的标题 | 无本地记录或 Hook 时显示「云端状态未接入」，没有待输入提醒或正文搜索 |
+| 终端                       | Terminal、iTerm2、Ghostty；支持 tmux 定位      | 精确 Ghostty 定位使用 1.4 的 tty 接口；缺少接口时降级处理            |
+
+Agent Inbox 管理你已经打开的会话，不托管或派发任务、不代替用户授权，也不提供跨设备云同步。只有一个会话、很少切换窗口时，直接使用原客户端即可。其他 Agent 和网络通知渠道目前只有扩展接口，尚未内置接入。
+
+## 数据与设置
+
+状态、订阅、配置、通知队列存储在 `~/.sessions/`。会话记录只读；没有会话上传服务。
+
+| 设置         | 类型 / 默认值                              | 行为                                                        |
+| ------------ | ------------------------------------------ | ----------------------------------------------------------- |
+| 语言         | 中文 / English；默认中文                   | 同时影响界面和通知，在 Raycast 扩展偏好中设置               |
+| 默认终端     | Terminal / iTerm2 / Ghostty；默认 Terminal | 找不到原 CLI 窗口时在此恢复会话                             |
+| 系统通知     | 开关；默认开启                             | 仅提醒已订阅、未处理且仍需用户介入的会话                    |
+| 菜单栏显示   | 开关；默认开启                             | 展示订阅会话与待输入数量                                    |
+| 会话全文搜索 | 开关；默认关闭                             | 确认后在本机索引用户与 Agent 消息；不包含工具输出与思考过程 |
+
+全文索引位于 `~/.sessions/cache/conversation-search.sqlite`。关闭搜索会停止索引与正文检索，已有索引不会自动删除。更多说明见 [搜索与隐私](docs/usage.md#搜索)。
+
+## 开发与贡献
+
+```sh
+npm ci
+npm run check  # 测试、类型、ESLint / Prettier、CLI 与 Raycast 构建
+npm run dev    # 在 Raycast 中加载开发版
 ```
 
-> `package.json` 里的 `author` 必须是你的 Raycast Store 用户名，否则 `ray lint` 和发布会失败。
+- [贡献说明](CONTRIBUTING.md)：开发、复现问题与提交 PR。
+- [CLI](docs/cli.md) · [架构](docs/architecture.md) · [扩展接口](docs/integrations.md)。
+- [测试记录](TESTING.md) · [更新记录](CHANGELOG.md) · [发布准备](docs/releasing.md)。
+- [产品与 Logo 设计说明](docs/brand-brief.md)。
 
-测试使用临时数据库和配置文件，并在结束后清理；不会接入或移除你实际使用的 Agent hooks。CLI 测试覆盖异常输入、数据库失败和原有 Codex notify 命令转发。`npm run check` 只做本地检查，不发布到 Store。
+使用问题与建议请提交 [Issue](https://github.com/0xFANGO/agent-inbox/issues)；安全问题请先阅读 [安全说明](SECURITY.md)。
 
-自动化测试不包含 Raycast 原生界面、macOS 系统通知和终端跳转的交互验收。开发安装后需在 Raycast 中检查：内容搜索确认与取消、订阅列表分组、订阅与已处理操作、菜单栏计数、接入结果，以及通知点击和各终端的跳回行为。
+## 许可证
 
-本轮验证结果与待验收范围见 [测试记录](TESTING.md)。
-
-## 设计技能
-
-仓库里已经装好 [Impeccable](https://github.com/pbakaus/impeccable) 设计技能（`.claude/skills/impeccable` 给 Claude Code 用，`.agents/skills/impeccable` 给 Codex 用），可以用 `/impeccable critique …`、`/impeccable polish …` 等命令。
+源码采用 [MIT](LICENSE)。第三方图标与随仓库附带的工具保留各自权利，素材来源核对事项见 [发布准备](docs/releasing.md#公开前尚需确认)。

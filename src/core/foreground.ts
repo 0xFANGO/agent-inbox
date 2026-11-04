@@ -1,12 +1,14 @@
-import { CLAUDE_BUNDLE, findClaudeDesktopSession, readClaudeDesktopSessions, sameClaudeBridgeId } from "./claude-desktop";
+import { CLAUDE_BUNDLE, CLAUDE_BRIDGE_ID, findClaudeDesktopSession, readClaudeDesktopSessions, sameClaudeBridgeId } from "./claude-desktop";
 import { CODEX_APP_BUNDLE } from "./adapters/codex";
 import { readCodexDesktopSessions } from "./codex-desktop";
 import { FocusedWindow, readFocusedWindow } from "./focused-window";
 import { fromHistory } from "./merge";
 import { bundleFor, frontTty, tmuxClients, TERMINAL_BUNDLES } from "./terminal";
 import { Session } from "./types";
+import { claudeWindowIdentity } from "./claude-window";
 
 export interface ForegroundContext {
+  capturedAt?: number;
   bundleId?: string;
   window?: FocusedWindow;
   tty?: string;
@@ -14,7 +16,9 @@ export interface ForegroundContext {
 
 /** Capture focus before reading history or the database, which may take time. */
 export async function captureForeground(bundleId: string | undefined): Promise<ForegroundContext> {
-  if (bundleId === CLAUDE_BUNDLE || bundleId === CODEX_APP_BUNDLE) return { bundleId, window: await readFocusedWindow(bundleId) };
+  const capturedAt = Date.now();
+  if (bundleId === CLAUDE_BUNDLE || bundleId === CODEX_APP_BUNDLE)
+    return { bundleId, capturedAt, window: await readFocusedWindow(bundleId) };
   return { bundleId, tty: bundleId ? await frontTty(bundleId) : undefined };
 }
 
@@ -42,18 +46,6 @@ export async function captureAfterRaycast(actions: {
 
 function unique(sessions: Session[]): Session | undefined {
   return sessions.length === 1 ? sessions[0] : undefined;
-}
-
-function documentId(bundleId: string, raw: string): string | undefined {
-  try {
-    const url = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    if (bundleId === CLAUDE_BUNDLE && url.hostname === "claude.ai") {
-      return url.pathname.match(/^\/(?:epitaxy|code)\/((?:local_|session_|cse_)[A-Za-z0-9-]+)\/?$/)?.[1];
-    }
-  } catch {
-    // Missing or unsupported document URL.
-  }
-  return undefined;
 }
 
 const UUID = "([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})";
@@ -149,18 +141,43 @@ export async function sessionForForeground(
         locator: { ...existing?.locator, claudeDesktopId: r.sessionId },
       });
     }
-    const id = documentId(bundleId, window.url);
+    const identity = claudeWindowIdentity(window);
+    const id = identity?.sessionId;
     if (id) {
       const localId = findClaudeDesktopSession(id, desktop)?.sessionId;
-      return unique(
-        candidates.filter(
-          (s) =>
-            s.sessionId === id ||
-            s.locator.claudeDesktopId === id ||
-            (localId && s.locator.claudeDesktopId === localId) ||
-            sameClaudeBridgeId(s.sessionId, id),
-        ),
+      const matches = candidates.filter(
+        (s) =>
+          s.sessionId === id ||
+          s.locator.claudeDesktopId === id ||
+          (localId && s.locator.claudeDesktopId === localId) ||
+          sameClaudeBridgeId(s.sessionId, id),
       );
+      if (matches.length) {
+        const match = unique(matches);
+        return match && identity.title ? { ...match, title: identity.title, titleObservedAt: context.capturedAt ?? Date.now() } : match;
+      }
+      // Preserve ambiguous/archived local mappings; don't manufacture a cloud duplicate.
+      if (desktop.some((r) => r.sessionId === id || r.bridgeSessionIds?.some((alias) => sameClaudeBridgeId(alias, id)))) return undefined;
+      if (!CLAUDE_BRIDGE_ID.test(id)) return undefined;
+      // Cloud-only Code sessions have no local_* metadata or CLI transcript. Save the
+      // actual focused identity without guessing state, project or activity timestamps.
+      return {
+        agent: "claude",
+        sessionId: id,
+        host: "app",
+        title: identity.title || id,
+        titleObservedAt: context.capturedAt ?? Date.now(),
+        cwd: "",
+        summary: "",
+        transcriptPath: "",
+        locator: {},
+        status: "unknown",
+        attention: null,
+        subscribed: false,
+        handledAt: null,
+        startedAt: 0,
+        updatedAt: 0,
+      };
     }
     // A known non-conversation document (home, settings, ordinary Claude chat) must not match by title.
     if (window.url) return undefined;

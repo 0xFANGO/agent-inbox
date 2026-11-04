@@ -1,5 +1,22 @@
 # Agent Inbox Changelog
 
+以下为开发记录；截至 2026-11-04 尚未发布 GitHub Release。标题日期表示开发日期，不代表 Store 上线日期。
+
+## [Open-source Preparation] - 2026-11-04
+
+- 补齐源码安装、首次接入、权限、数据目录与卸载说明，分开快速上手与详细使用文档。
+- 增加 CLI 帮助、隔离运行示例与参数默认值说明。
+- 沿用已声明的 MIT 补齐许可证，加入贡献指南、安全报告说明和问题模板。
+- 加入 macOS CI 与扩展打包命令；安装包附带许可证并移除含本机路径的 source map，明确 Node 最低版本及尚未完成的发布检查。
+- 整理产品功能和 Logo 设计说明，标明纯云端状态监测等兼容边界。
+
+## [Session Title Synchronization] - 2026-11-04
+
+- 标题作为独立元数据持久化；列表、菜单栏与通知采用同一份按 ID 关联的当前名称，旧读取结果不能覆盖新名称。
+- 补齐 Claude CLI 的 custom-title.json 和旧 transcript 改名记录；继续读取 Claude 桌面 metadata 与 Codex 当前会话目录。
+- Claude Cloud 已打开窗口的标题可被动同步；窗口不可访问、关闭或来源暂缺时保留旧名称，不推断远端运行状态。
+- 改名保留订阅、已处理、运行状态和活动时间，不产生额外通知；已排队通知使用最新标题。
+
 ## [Subscription Sections and Settings] - 2026-11-04
 
 - 订阅列表与菜单栏统一为待输入、已订阅、已完成三个分区，移除运行中和其他会话分区。
@@ -22,6 +39,8 @@
 - 设置集中管理 Agent 接入、语言、恢复终端和通知；会话行提供订阅与跳转主次操作。
 
 ## [Initial Version] - {PR_MERGE_DATE}
+
+此日期占位符保留给首次 Raycast Store PR 合并流程；不代表已经发布。
 
 - 收件箱 / 全部会话 / 订阅当前会话 / 菜单栏 / 接入 Agent 五个命令
 - Claude Code（CLI · 桌面端）与 Codex（CLI · 桌面端）的 hook 接入与跳回

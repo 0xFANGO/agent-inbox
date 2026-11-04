@@ -3,10 +3,15 @@ import { absoluteTime, agentHostLabel, relativeTime, statusLabel } from "../core
 import { Translator } from "../core/i18n";
 import { tildify } from "../core/paths";
 import { Session } from "../core/types";
+import { isClaudeCloudOnly } from "../core/claude-desktop";
 
 /** ⌘I: the last sentence plus four lines of metadata. Nothing else. */
 export function SessionDetail({ session, t }: { session: Session; t: Translator }) {
-  const quote = session.summary ? session.summary.replace(/\n/g, " ") : `_${t("meta.noSummary")}_`;
+  const quote = isClaudeCloudOnly(session)
+    ? t("meta.cloudUnavailable")
+    : session.summary
+      ? session.summary.replace(/\n/g, " ")
+      : `_${t("meta.noSummary")}_`;
   const markdown = `### ${escapeMd(session.title || session.sessionId)}\n\n> ${escapeMd(quote)}`;
   return (
     <List.Item.Detail

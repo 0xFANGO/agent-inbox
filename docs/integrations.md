@@ -23,6 +23,9 @@
 - `transcript.parse(entry, session, context)`：把一条来源记录转成零个或多个 AgentEvent。
 - `locateTranscript(session)`：精确定位该会话的本地记录；不能猜最近文件。
 - `discover()`：预留历史发现能力；当前历史列表仍有 Claude/Codex 专用扫描，接入新来源时需要将其发现结果接到列表入口。
+- `titles(sessions)`：返回按 agent / sessionId 标识的 `SessionTitle[]`，包含 title、source 和读取开始时的 observedAt；独立于状态事件。只返回有当前证据的名称，缺失、读取失败和空标题不用于清空旧名称。
+
+`TitleSynchronizer` 合并各来源，将已有会话的名称写入独立 `session_titles` 表，再向列表提供相同的已提交名称。观察时间较旧或相同的更新不会覆盖已保存结果；不修改会话活动时间、状态、订阅、处理标记或事件收据，也不入通知队列。历史列表中尚未入库的会话仅更新当前显示，不自动导入或订阅。批量写入分块限制 SQLite 查询深度；来源按自身 agent 隔离。通知渠道发送前会取得最新标题。
 
 来源不导入通知实现。实际组合为 `new TranscriptCollector(engine, () => adapters)`；Hook 和自定义桥接使用同一个 `EventEngine.ingest`。推送型宿主无需 transcript，可直接通过 CLI 上报：
 

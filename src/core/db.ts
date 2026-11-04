@@ -1,7 +1,7 @@
 import { exec, q } from "./sqlite";
 import { DB_PATH } from "./paths";
 import { applyEvent, Transition } from "./status";
-import { AgentEvent, Attention, Host, Locator, Session, SessionState, Status } from "./types";
+import { AgentEvent, Attention, Host, Locator, Session, SessionState, SessionTitle, Status } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS notification_outbox (
   PRIMARY KEY(id, channel)
 );
 CREATE TABLE IF NOT EXISTS source_cursors (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS session_titles (
+  agent TEXT NOT NULL, session_id TEXT NOT NULL, title TEXT NOT NULL,
+  observed_at INTEGER NOT NULL, source TEXT NOT NULL, PRIMARY KEY(agent,session_id)
+);
 `;
 
 interface Row {
@@ -59,10 +63,17 @@ interface Row {
   transcript_path: string;
   state: string;
   revision: number;
+  title_observed_at?: number | null;
+  title_source?: string | null;
 }
 
 const COLUMNS =
   "agent, session_id, host, title, cwd, status, attention, summary, locator, subscribed, handled_at, started_at, updated_at, transcript_path, state, revision";
+
+const READ_SESSIONS = `SELECT ${COLUMNS.split(", ")
+  .map((column) => (column === "title" ? "COALESCE(t.title,s.title) AS title" : `s.${column}`))
+  .join(", ")},
+  t.observed_at AS title_observed_at, t.source AS title_source FROM sessions s LEFT JOIN session_titles t ON s.agent=t.agent AND s.session_id=t.session_id`;
 
 function fromRow(r: Row): Session {
   let locator: Locator = {};
@@ -76,6 +87,8 @@ function fromRow(r: Row): Session {
     sessionId: r.session_id,
     host: (r.host === "app" ? "app" : "cli") as Host,
     title: r.title ?? "",
+    ...(r.title_observed_at != null ? { titleObservedAt: r.title_observed_at } : {}),
+    ...(r.title_source ? { titleSource: r.title_source } : {}),
     cwd: r.cwd ?? "",
     status: r.status as Status,
     attention: (r.attention as Attention | null) ?? null,
@@ -169,18 +182,18 @@ export class Store {
   }
 
   async get(agent: string, sessionId: string): Promise<Session | undefined> {
-    const rows = await this.run(`SELECT ${COLUMNS} FROM sessions WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
+    const rows = await this.run(`${READ_SESSIONS} WHERE s.agent=${q(agent)} AND s.session_id=${q(sessionId)};`);
     return rows[0] ? fromRow(rows[0]) : undefined;
   }
 
   async all(limit = 500): Promise<Session[]> {
-    const rows = await this.run(`SELECT ${COLUMNS} FROM sessions ORDER BY updated_at DESC LIMIT ${q(limit)};`);
+    const rows = await this.run(`${READ_SESSIONS} ORDER BY s.updated_at DESC LIMIT ${q(limit)};`);
     return rows.map(fromRow);
   }
 
   /** Rows that can appear in the inbox or the menu bar. */
   async active(): Promise<Session[]> {
-    const rows = await this.run(`SELECT ${COLUMNS} FROM sessions WHERE subscribed=1 AND handled_at IS NULL ORDER BY updated_at DESC;`);
+    const rows = await this.run(`${READ_SESSIONS} WHERE s.subscribed=1 AND s.handled_at IS NULL ORDER BY s.updated_at DESC;`);
     return rows.map(fromRow);
   }
 
@@ -228,7 +241,31 @@ export class Store {
   }
 
   async subscribed(): Promise<Session[]> {
-    return (await this.run("SELECT " + COLUMNS + " FROM sessions WHERE subscribed=1;")).map(fromRow);
+    return (await this.run(`${READ_SESSIONS} WHERE s.subscribed=1;`)).map(fromRow);
+  }
+
+  /** Metadata never changes state, activity, subscription or notification receipts. */
+  async syncTitles(observations: SessionTitle[]): Promise<SessionTitle[]> {
+    const valid = observations.filter((o) => o.title.trim() && Number.isFinite(o.observedAt) && o.observedAt >= 0);
+    if (!valid.length) return [];
+    if (valid.length > 200) {
+      const saved: SessionTitle[] = [];
+      for (let index = 0; index < valid.length; index += 200) saved.push(...(await this.syncTitles(valid.slice(index, index + 200))));
+      return saved;
+    }
+    const writes = valid
+      .map(
+        (o) =>
+          `INSERT INTO session_titles (agent,session_id,title,observed_at,source)
+       SELECT ${q(o.agent)},${q(o.sessionId)},${q(o.title)},${q(o.observedAt)},${q(o.source)}
+       WHERE EXISTS (SELECT 1 FROM sessions WHERE agent=${q(o.agent)} AND session_id=${q(o.sessionId)})
+       ON CONFLICT(agent,session_id) DO UPDATE SET title=excluded.title,observed_at=excluded.observed_at,source=excluded.source
+       WHERE excluded.observed_at>session_titles.observed_at;`,
+      )
+      .join("\n");
+    const where = valid.map((o) => `(agent=${q(o.agent)} AND session_id=${q(o.sessionId)})`).join(" OR ");
+    return this.run<SessionTitle>(`BEGIN IMMEDIATE; ${writes}
+      SELECT agent,session_id AS sessionId,title,observed_at AS observedAt,source FROM session_titles WHERE ${where}; COMMIT;`);
   }
 
   async attachTranscript(agent: string, sessionId: string, path: string): Promise<void> {
@@ -286,6 +323,10 @@ export class Store {
       `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s, subscribed: true, handledAt: null })}) ` +
         `ON CONFLICT(agent, session_id) DO UPDATE SET revision=sessions.revision+1, subscribed=1, handled_at=NULL${identity};`,
     );
+    if (options.focused && s.title)
+      await this.syncTitles([
+        { agent: s.agent, sessionId: s.sessionId, title: s.title, observedAt: s.titleObservedAt ?? Date.now(), source: "focused-window" },
+      ]);
   }
 
   async markHandled(agent: string, sessionId: string, at = Date.now()): Promise<void> {

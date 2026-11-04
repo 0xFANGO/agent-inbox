@@ -1,4 +1,5 @@
 import { findTranscript } from "../sources/locate";
+import { readCodexTitles } from "../codex-desktop";
 import { codexTranscript, questionIds } from "../sources/transcripts";
 import { existsSync, readFileSync } from "node:fs";
 import { CODEX_CONFIG, CODEX_DIR, CODEX_HOOKS, CODEX_SESSIONS } from "../paths";
@@ -214,7 +215,11 @@ function hookEntries(ctx: HookContext): Record<string, HookEntry> {
 
 export const codexAdapter: Adapter = {
   id: "codex",
-  source: { transcript: codexTranscript, locateTranscript: async (session) => findTranscript(CODEX_SESSIONS, session.sessionId, true) },
+  source: {
+    transcript: codexTranscript,
+    locateTranscript: async (session) => findTranscript(CODEX_SESSIONS, session.sessionId, true),
+    titles: readCodexTitles,
+  },
   name: "Codex",
   icon: "openai.svg",
 
