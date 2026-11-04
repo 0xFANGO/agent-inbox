@@ -5,6 +5,7 @@ const messages = {
   "status.ready": "Turn ended",
   "status.unknown": "Status unknown",
   "status.cloudUnavailable": "Cloud status unavailable",
+  "host.cloud": "Claude cloud conversation",
   "hud.cloudSubscribed": "Subscribed: {title} (cloud status unavailable)",
   "meta.cloudUnavailable":
     "This cloud session is saved and can be reopened from Subscriptions. Cloud execution status is not connected, so waiting-for-input alerts are unavailable.",

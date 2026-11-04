@@ -1,6 +1,7 @@
 import { Color, Icon, launchCommand, LaunchType, MenuBarExtra, openExtensionPreferences } from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
 import { rowTime, statusLabel } from "./core/format";
+import { isClaudeCloudOnly } from "./core/claude-desktop";
 import { groupInbox, waitingCount } from "./core/status";
 import { agentIcon } from "./components/icons";
 import { locale } from "./lib/env";
@@ -36,9 +37,9 @@ export default function MenuBar() {
               {groups[section].map((s) => (
                 <MenuBarExtra.Item
                   key={`${s.agent}:${s.sessionId}`}
-                  icon={agentIcon(s.agent)}
+                  icon={isClaudeCloudOnly(s) ? Icon.Cloud : agentIcon(s.agent)}
                   title={s.title || s.sessionId}
-                  subtitle={`${statusLabel(s, t)} · ${rowTime(s, t)}`}
+                  subtitle={isClaudeCloudOnly(s) ? undefined : `${statusLabel(s, t)} · ${rowTime(s, t)}`}
                   onAction={() => jumpBack(s, config, t)}
                 />
               ))}

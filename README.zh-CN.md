@@ -31,19 +31,14 @@ flowchart LR
 
 ## 快速开始
 
-需要 **macOS、Raycast、Node.js ≥ 22.22.2、npm**，以及已使用的 Claude Code 或 Codex。可点击通知另需 `terminal-notifier`。
+需要 **macOS、Raycast**，以及已经使用的 Claude Code 或 Codex。可点击通知另需 `terminal-notifier`。
 
-当前提供源码安装；仓库尚未公开时需要 GitHub 访问权限。目前没有 GitHub Release 下载。
+Agent Inbox 尚未在 Raycast Store 上架。审核通过后，可在 Raycast 的 **Store** 命令中搜索并安装 **Agent Inbox**。当前请参考 [源码安装](docs/setup.zh-CN.md#源码安装)。
 
-```sh
-git clone https://github.com/0xFANGO/agent-inbox.git
-cd agent-inbox
-npm ci
-npm run dev
-```
+安装扩展后：
 
 1. 在 Raycast 搜索 **Agent Inbox**，打开 **All Sessions → Actions（⌘K）→ Connect an Agent**，接入 Claude Code 或 Codex。Codex 首次需在客户端执行 `/hooks` 确认。
-2. 打开 **All Sessions（全部会话）**，选中一个会话，按 ⌘↵ 订阅。
+2. 从目标 Agent 窗口唤出 Raycast，运行 **Subscribe to Current Conversation（订阅当前对话）**。也可在 **All Sessions** 中选中会话，按 ⌘↵ 订阅。
 3. 打开 **Subscriptions（订阅列表）**，查看状态并按回车跳回。支持监测的会话在产生新待处理请求时会提醒；首次恢复历史状态不补发通知。
 
 插件界面和通知统一使用英文。通过 **Actions → Open Extension Preferences** 打开原生偏好，设置恢复终端、通知和全文搜索。
@@ -52,11 +47,12 @@ npm run dev
 
 ## 日常使用
 
-| Raycast 命令     | 用途                         | 常用操作                            |
-| ---------------- | ---------------------------- | ----------------------------------- |
-| All Sessions     | 搜索与筛选会话，订阅当前窗口 | ↵ 跳回 · ⌘↵ 订阅 · ⌘I 详情          |
-| Subscriptions    | 处理关心的会话               | ↵ 跳回 · ⌘↵ 取消订阅 · ⌘D 已处理    |
-| Session Menu Bar | 展示订阅会话与待输入数量     | 在 Raycast 原生命令偏好中启用或停用 |
+| Raycast 命令                      | 用途                         | 常用操作                                                   |
+| --------------------------------- | ---------------------------- | ---------------------------------------------------------- |
+| Subscribe to Current Conversation | 订阅当前窗口中的对话         | 可在 Raycast Preferences → Extensions 中单独设置全局快捷键 |
+| All Sessions                      | 搜索与筛选会话，订阅当前窗口 | ↵ 跳回 · ⌘↵ 订阅 · ⌘I 详情                                 |
+| Subscriptions                     | 处理关心的会话               | ↵ 跳回 · ⌘↵ 取消订阅 · ⌘D 已处理                           |
+| Session Menu Bar                  | 展示订阅会话与待输入数量     | 在 Raycast 原生命令偏好中启用或停用                        |
 
 **待输入**包括问题、授权，以及需要处理的失败、额度或中断。**本轮结束**表示 Agent 停止了这一轮；只有明确的完成事件才标记为**已完成**。标记已处理会暂时隐藏会话，状态变化或新请求会让它重新出现。
 
@@ -66,12 +62,12 @@ npm run dev
 
 当前支持的平台是 **Raycast**，操作系统是 **macOS**。会话状态采集依赖本地 Hook 或对话记录，纯云端会话的能力见下表。
 
-| 来源                       | 当前能力                                       | 边界                                                                 |
-| -------------------------- | ---------------------------------------------- | -------------------------------------------------------------------- |
-| Claude Code CLI / 本地桌面 | 历史发现、订阅、Hook 与本地记录状态采集、跳回  | 原窗口定位依赖权限与可用的会话映射                                   |
-| Codex CLI / 桌面           | 历史发现、订阅、Hook 与本地 rollout 采集、跳回 | 客户端数据格式可能变化；当前桌面流程的完整实机验收仍待完成           |
-| Claude Code 纯云端         | 按明确窗口 ID 订阅和跳回，同步已打开窗口的标题 | 无本地记录或 Hook 时显示「云端状态未接入」，没有待输入提醒或正文搜索 |
-| 终端                       | Terminal、iTerm2、Ghostty；支持 tmux 定位      | 精确 Ghostty 定位使用 1.4 的 tty 接口；缺少接口时降级处理            |
+| 来源                       | 当前能力                                       | 边界                                                           |
+| -------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
+| Claude Code CLI / 本地桌面 | 历史发现、订阅、Hook 与本地记录状态采集、跳回  | 原窗口定位依赖权限与可用的会话映射                             |
+| Codex CLI / 桌面           | 历史发现、订阅、Hook 与本地 rollout 采集、跳回 | 客户端数据格式可能变化；已验证流程见测试记录                   |
+| Claude Code 纯云端         | 按明确窗口 ID 订阅和跳回，同步已打开窗口的标题 | 以云朵图标标识；无本地记录或 Hook 时，没有待输入提醒或正文搜索 |
+| 终端                       | Terminal、iTerm2、Ghostty；支持 tmux 定位      | 精确 Ghostty 定位使用 1.4 的 tty 接口；缺少接口时降级处理      |
 
 Agent Inbox 管理你已经打开的会话，不托管或派发任务、不代替用户授权，也不提供跨设备云同步。只有一个会话、很少切换窗口时，直接使用原客户端即可。其他 Agent 和网络通知渠道目前只有扩展接口，尚未内置接入。
 

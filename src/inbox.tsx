@@ -1,4 +1,5 @@
 import { statusLabel } from "./core/format";
+import { isClaudeCloudOnly } from "./core/claude-desktop";
 import {
   Action,
   ActionPanel,
@@ -64,6 +65,7 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
       isShowingDetail={showDetail && !empty}
       searchBarPlaceholder={t("search.placeholder")}
       onSearchTextChange={setSearch}
+      filtering={{ keepSectionOrder: true }}
     >
       {empty && connected.data === false ? (
         <List.EmptyView
@@ -146,11 +148,13 @@ function InboxItem(props: {
   onRefresh: () => void;
 }) {
   const { session: s, t, config, showDetail } = props;
+  const cloud = isClaudeCloudOnly(s);
   const dot = statusDot(s);
   const accessories: List.Item.Accessory[] = [];
   if (dot) accessories.push({ icon: dot, tooltip: statusLabel(s, t) });
-  if (!showDetail && (s.status === "ready" || s.status === "unknown")) accessories.push({ text: statusLabel(s, t) });
-  if (!showDetail) accessories.push({ text: rowTime(s, t) });
+  if (cloud) accessories.push({ icon: Icon.Cloud, tooltip: t("host.cloud") });
+  else if (!showDetail && (s.status === "ready" || s.status === "unknown")) accessories.push({ text: statusLabel(s, t) });
+  if (!showDetail && (!cloud || s.updatedAt)) accessories.push({ text: rowTime(s, t) });
 
   return (
     <List.Item

@@ -4,6 +4,8 @@
 
 ## [Initial Release] - {PR_MERGE_DATE}
 
+- Subscribe to the focused conversation directly from Raycast search or a global hotkey; identify Claude cloud sessions with a cloud icon.
+- Filter Subscriptions by the search text and reconcile Claude question reminders without duplicate pending requests.
 - Jump to sessions with Return, toggle subscriptions with Command-Return, and scan compact lists with subscription section counts.
 - Find Claude Code and Codex sessions by title, project, or session ID, and subscribe from history or the current window.
 - Follow session status in Raycast and the menu bar, with notifications when a subscribed conversation needs your input.

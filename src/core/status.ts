@@ -1,4 +1,4 @@
-import { AgentEvent, PendingRequest, Session, SessionState } from "./types";
+import { AgentEvent, Attention, PendingRequest, Session, SessionState } from "./types";
 
 export const TITLE_MAX = 80;
 
@@ -133,8 +133,14 @@ export function applyEvent(prev: Session | undefined, ev: AgentEvent): Transitio
     case "quota":
     case "interrupted": {
       const attention = ev.type === "needs_input" ? (ev.attention ?? "input") : ev.type;
-      if (!ids.length && state.pending.some((request) => !request.inferred && request.attention === attention)) break;
-      if (ids.length) state.pending = state.pending.filter((request) => !request.inferred || request.attention !== attention);
+      // Claude can send a generic permission_prompt notification for AskUserQuestion.
+      // Unscoped input reminders must not duplicate a tracked question/approval or
+      // remain pending after its tool result resolves the real request.
+      const samePrompt = (other: Attention) =>
+        other === attention ||
+        (["input", "question", "permission"].includes(attention) && ["input", "question", "permission"].includes(other));
+      if (!ids.length && state.pending.some((request) => !request.inferred && samePrompt(request.attention))) break;
+      if (ids.length) state.pending = state.pending.filter((request) => !request.inferred || !samePrompt(request.attention));
       const requestIds = ids.length ? ids : [`hint:${attention}`];
       for (const id of requestIds) {
         if (state.resolved.includes(id) || state.pending.some((request) => request.id === id)) continue;

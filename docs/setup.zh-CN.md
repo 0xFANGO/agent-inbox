@@ -4,35 +4,35 @@
 
 [返回 README](../README.zh-CN.md)
 
-## 环境
+## 环境要求
 
-- macOS 与已安装的 Raycast；本项目使用 macOS 的窗口、通知和 LaunchAgent 接口。
-- Node.js **22.22.2 或更高版本**、npm、Git。最低 Node 版本来自锁定的 `@raycast/api`；仓库的 `.nvmrc` 使用 Node 24。
-- 至少一个已使用的 Claude Code 或 Codex 客户端。Agent Inbox 不代为安装或登录这些客户端。
-- 系统 `sqlite3`，用于本地状态数据库与搜索索引。
-- 可选的 `terminal-notifier`，用于可点击的 macOS 通知。
+- macOS、Raycast，以及已经使用的 Claude Code 或 Codex。Agent Inbox 不安装或登录这些客户端。
+- 系统自带的 `sqlite3`，用于本地状态与搜索索引。
+- 可选的 `terminal-notifier`，用于可点击通知。
 
-## 从源码安装
+Hook 和后台采集器优先使用已有 Node.js，没有时使用 Raycast 自带运行时。源码开发需要 Node.js **22.22.2 或更高版本**、npm 和 Git；`.nvmrc` 选择 Node 24。
 
-当前安装方式为本地开发安装，没有可供下载的 GitHub Release。
+## 在 Raycast 中安装
+
+Agent Inbox 尚未在 Store 上架。审核通过后，在 Raycast 的 **Store** 命令中搜索并安装 **Agent Inbox**，然后按下方步骤接入 Agent。商店安装无需克隆仓库或运行 npm。当前请按下方步骤从源码安装。
+
+## 源码安装
+
+开发或评审 PR 时，先检出对应源码分支，进入包含 `package.json` 的扩展目录。在 Raycast extensions 仓库中，该目录为 `extensions/agent-inbox`。
 
 ```sh
-git clone https://github.com/0xFANGO/agent-inbox.git
-cd agent-inbox
 npm ci
 npm run dev
 ```
 
-仓库尚未公开时，clone 需要已有的 GitHub 访问权限。使用 nvm 的开发者可先执行 `nvm install`，再执行 `npm ci`。
-
-`npm run dev` 打包辅助 CLI，并通过 `ray develop` 加载扩展。在 Raycast 搜索 **Agent Inbox**，应能看到**All Sessions（全部会话）**、**Subscriptions（订阅列表）**、**Session Menu Bar** 三个命令。
+`npm run dev` 构建辅助 CLI 并将扩展导入 Raycast。发布验收时，先停止开发进程，再运行 `npm run build`，然后在 Raycast 中实际操作。搜索 **Agent Inbox** 可找到四个命令，包括 **Subscribe to Current Conversation**。每个命令都可在 **Raycast Preferences → Extensions** 中单独配置全局快捷键。
 
 ### 接入第一个 Agent
 
 1. 打开 **All Sessions**，在 **Actions（⌘K）** 中选择 **Connect an Agent**。
 2. 选择 Claude Code 或 Codex，按回车执行接入；面板会显示结果。
 3. Codex 首次接入后，按提示在 Codex 内执行 `/hooks` 确认信任。已运行会话是否加载新 Hook 取决于客户端，可在新会话中验证。
-4. 打开 **All Sessions（全部会话）**，选一个会话并按 ⌘↵ 订阅。也可以从目标 Agent 窗口唤出 Raycast，使用 **Actions → Subscribe to Current Conversation**（⌘⇧↵）。
+4. 在 **All Sessions** 选中会话后按 ⌘↵ 订阅；也可从目标 Agent 窗口唤出 Raycast，直接运行 **Subscribe to Current Conversation**。列表中的 Actions → Subscribe to Current Conversation（⌘⇧↵）仍可使用。
 5. 打开 **Subscriptions（订阅列表）** 查看它。支持监测的会话在需要回答或授权时进入「待输入」，系统通知开启时会提醒；按回车跳回原对话。
 
 首次可以订阅一个已经存在的会话验证列表展示。通知应使用新产生的问题或授权请求验证：首次恢复历史状态不会补发历史通知。
@@ -80,7 +80,7 @@ Agent 自身的对话文件只读。默认搜索标题、项目和 ID；全文�
    若服务已停止，第一条命令可能报告找不到服务；仍需删除启动项，避免下次登录再次启动。仅移除 Hook 不会自动卸载采集器。
 
 3. 在 Raycast 的扩展设置中移除 Agent Inbox。
-4. 按需删除 `~/.sessions/`；这会丢失订阅、配置和本地索引。使用自定义 `AGENT_INBOX_HOME` 时检查对应目录。该目录不是 Agent 原始对话存储，删除它不会删除 Claude / Codex 中的对话。
+4. 在 **All Sessions** 选中会话后按 ⌘↵ 订阅；也可从目标 Agent 窗口唤出 Raycast，直接运行 **Subscribe to Current Conversation**。列表中的 Actions → Subscribe to Current Conversation（⌘⇧↵）仍可使用。
 
 ## 排查
 

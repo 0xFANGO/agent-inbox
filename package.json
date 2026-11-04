@@ -33,6 +33,20 @@
   ],
   "commands": [
     {
+      "name": "subscribe-current",
+      "title": "Subscribe to Current Conversation",
+      "subtitle": "Agent Inbox",
+      "description": "Subscribe to the Claude Code or Codex conversation in the focused desktop window or terminal tab.",
+      "mode": "no-view",
+      "keywords": [
+        "subscribe",
+        "current",
+        "focused",
+        "window",
+        "conversation"
+      ]
+    },
+    {
       "name": "all-sessions",
       "title": "All Sessions",
       "subtitle": "Agent Inbox",
@@ -127,7 +141,7 @@
   },
   "scripts": {
     "build:cli": "esbuild cli/agent-inbox.ts --bundle --platform=node --format=esm --target=node18 --outfile=assets/agent-inbox.mjs --banner:js='#!/usr/bin/env node'",
-    "build": "npm run build:cli && ray build",
+    "build": "npm run build:cli && ray build -e dist",
     "bundle": "npm run build:cli && ray bundle --output dist/agent-inbox.rayext && zip -q -d dist/agent-inbox.rayext '*.map' && zip -q -j dist/agent-inbox.rayext LICENSE",
     "dev": "npm run build:cli && ray develop",
     "typecheck": "tsc --noEmit",
@@ -137,6 +151,7 @@
     "check": "npm test && npm run typecheck && npm run lint:code && npm run build",
     "lint": "ray lint",
     "fix-lint": "ray lint --fix",
+    "prepare:store": "npm run build:cli && node scripts/prepare-store.mjs",
     "publish": "npm run build:cli && ray publish"
   }
 }

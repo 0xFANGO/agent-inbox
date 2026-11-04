@@ -373,8 +373,9 @@ function applyEvent(prev, ev) {
     case "quota":
     case "interrupted": {
       const attention2 = ev.type === "needs_input" ? ev.attention ?? "input" : ev.type;
-      if (!ids.length && state.pending.some((request) => !request.inferred && request.attention === attention2)) break;
-      if (ids.length) state.pending = state.pending.filter((request) => !request.inferred || request.attention !== attention2);
+      const samePrompt = (other) => other === attention2 || ["input", "question", "permission"].includes(attention2) && ["input", "question", "permission"].includes(other);
+      if (!ids.length && state.pending.some((request) => !request.inferred && samePrompt(request.attention))) break;
+      if (ids.length) state.pending = state.pending.filter((request) => !request.inferred || !samePrompt(request.attention));
       const requestIds2 = ids.length ? ids : [`hint:${attention2}`];
       for (const id of requestIds2) {
         if (state.resolved.includes(id) || state.pending.some((request) => request.id === id)) continue;
@@ -2063,6 +2064,7 @@ var messages = {
   "status.ready": "Turn ended",
   "status.unknown": "Status unknown",
   "status.cloudUnavailable": "Cloud status unavailable",
+  "host.cloud": "Claude cloud conversation",
   "hud.cloudSubscribed": "Subscribed: {title} (cloud status unavailable)",
   "meta.cloudUnavailable": "This cloud session is saved and can be reopened from Subscriptions. Cloud execution status is not connected, so waiting-for-input alerts are unavailable.",
   "status.idle": "Not started",

@@ -31,19 +31,14 @@ flowchart LR
 
 ## Quick start
 
-Requires **macOS, Raycast, Node.js ≥ 22.22.2, npm**, and an existing Claude Code or Codex setup. Clickable notifications also require `terminal-notifier`.
+Requires **macOS, Raycast**, and an existing Claude Code or Codex setup. Clickable notifications also require `terminal-notifier`.
 
-Install from source. While the repository is private, cloning requires GitHub access. No GitHub Release download is available yet.
+Agent Inbox is not yet published in the Raycast Store. Once approved, install **Agent Inbox** from Raycast's **Store** command. For now, follow [source installation](docs/setup.md#install-from-source).
 
-```sh
-git clone https://github.com/0xFANGO/agent-inbox.git
-cd agent-inbox
-npm ci
-npm run dev
-```
+After installing the extension:
 
 1. Search for **Agent Inbox** in Raycast. Open **All Sessions → Actions (⌘K) → Connect an Agent** and connect Claude Code or Codex. For Codex, approve the new hooks with `/hooks` in the client.
-2. Open **All Sessions**, select a session, and press ⌘Return to subscribe.
+2. From your agent window, invoke Raycast and run **Subscribe to Current Conversation**. Or open **All Sessions**, select a session, and press ⌘Return.
 3. Open **Subscriptions** to see its status and press Return to jump back. Sessions with monitoring support notify you about new requests; importing historical state does not send old notifications.
 
 The interface and notifications use English. Open **Actions → Open Extension Preferences** for terminal, notification, and full-text search options.
@@ -52,11 +47,12 @@ Connecting an agent installs local hooks and a user background collector, backin
 
 ## Everyday use
 
-| Raycast command  | Purpose                                                     | Shortcuts                                          |
-| ---------------- | ----------------------------------------------------------- | -------------------------------------------------- |
-| All Sessions     | Search and filter sessions; subscribe to the current window | ↵ jump back · ⌘↵ subscribe · ⌘I details            |
-| Subscriptions    | Act on the sessions you follow                              | ↵ jump back · ⌘↵ unsubscribe · ⌘D mark handled     |
-| Session Menu Bar | Show subscribed sessions and the waiting count              | Enable or disable in Raycast's command preferences |
+| Raycast command                   | Purpose                                                     | Shortcuts                                                  |
+| --------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| Subscribe to Current Conversation | Subscribe to the focused conversation                       | Assign a global hotkey in Raycast Preferences → Extensions |
+| All Sessions                      | Search and filter sessions; subscribe to the current window | ↵ jump back · ⌘↵ subscribe · ⌘I details                    |
+| Subscriptions                     | Act on the sessions you follow                              | ↵ jump back · ⌘↵ unsubscribe · ⌘D mark handled             |
+| Session Menu Bar                  | Show subscribed sessions and the waiting count              | Enable or disable in Raycast's command preferences         |
 
 **Waiting for input** includes questions, permission requests, and failures, quota limits, or interruptions that need attention. **Turn ended** means the agent stopped this turn; **Completed** requires an explicit completion event. Marking a session handled hides it until its state changes or a new request arrives.
 
@@ -69,7 +65,7 @@ The current platform is **Raycast** and the operating system is **macOS**. Sessi
 | Source                          | Available features                                                                       | Limits                                                                                                    |
 | ------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Claude Code CLI / local desktop | History, subscriptions, state collection through hooks and local transcripts, navigation | Exact window matching depends on permissions and available session mappings                               |
-| Codex CLI / desktop             | History, subscriptions, state collection through hooks and local rollouts, navigation    | Client formats may change; full desktop interaction testing is still pending                              |
+| Codex CLI / desktop             | History, subscriptions, state collection through hooks and local rollouts, navigation    | Client formats may change; see the test record for verified workflows                                     |
 | Cloud-only Claude Code          | Subscribe and navigate using an explicit window session ID; sync titles of open windows  | Without local transcripts or hooks, monitoring is unavailable: no input notifications or full-text search |
 | Terminals                       | Terminal, iTerm2, Ghostty, and tmux targeting                                            | Exact Ghostty targeting uses the tty interface in 1.4; missing interfaces fall back to recovery options   |
 

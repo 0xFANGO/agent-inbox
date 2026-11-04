@@ -6,15 +6,16 @@
 
 ## Commands
 
-| Command              | Purpose                                                                                       | Shortcuts                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **All Sessions**     | Browse all sessions, filter by subscription or status, and subscribe to the current window    | ↵ jump · ⌘↵ subscribe or unsubscribe · ⌘I details · ⌘R refresh                 |
-| **Subscriptions**    | Show subscribed, unhandled sessions in Waiting for You, Subscribed, and Completed sections    | ↵ jump · ⌘↵ unsubscribe · ⌘D mark handled · ⌘I details · ⌘⇧D archive completed |
-| **Session Menu Bar** | Show subscriptions and the waiting count; control visibility in Raycast's command preferences | —                                                                              |
+| Command                               | Purpose                                                                                       | Shortcuts                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Subscribe to Current Conversation** | Subscribe to the focused desktop conversation or terminal session                             | Assign a global hotkey in Raycast Preferences → Extensions                     |
+| **All Sessions**                      | Browse all sessions, filter by subscription or status, and subscribe to the current window    | ↵ jump · ⌘↵ subscribe or unsubscribe · ⌘I details · ⌘R refresh                 |
+| **Subscriptions**                     | Show subscribed, unhandled sessions in Waiting for You, Subscribed, and Completed sections    | ↵ jump · ⌘↵ unsubscribe · ⌘D mark handled · ⌘I details · ⌘⇧D archive completed |
+| **Session Menu Bar**                  | Show subscriptions and the waiting count; control visibility in Raycast's command preferences | —                                                                              |
 
 Subscription and status filters may overlap in **All Sessions**. The three **Subscriptions** sections are mutually exclusive. Running, turn-ended, and unknown sessions appear under **Subscribed**; a blue dot still indicates running. **Completed** contains only explicitly completed sessions.
 
-Both session lists use **Return to jump** and **⌘Return to subscribe or unsubscribe**. Raycast's bottom bar shows Jump to Session; Actions (⌘K) shows both shortcuts. Subscribing leaves the list open. **Subscribe to Current Conversation** is available in Actions or with **⌘⇧Return** in All Sessions, so the first selected row is a conversation. **Connect an Agent** and **Open Extension Preferences** remain in Actions.
+Both session lists use **Return to jump** and **⌘Return to subscribe or unsubscribe**. Raycast's bottom bar shows Jump to Session; Actions (⌘K) shows both shortcuts. Subscribing leaves the list open. **Subscribe to Current Conversation** is a separate root command, available directly from Raycast search or a global hotkey. It also remains in All Sessions → Actions and on **⌘⇧Return**. **Connect an Agent** and **Open Extension Preferences** remain in Actions.
 
 Rows prioritize the title, project, host, and activity. Open details with **⌘I** for the latest message and full status. Full-text search results retain matching snippets. Subscription section headings show their session counts; the detail sidebar hides redundant row labels to leave more room for titles.
 
@@ -73,18 +74,18 @@ New names persist separately. Older observations cannot overwrite newer ones. Re
 
 ### Subscribe to the current conversation
 
-Invoke Raycast from the target agent window, open **All Sessions**, and choose **Actions → Subscribe to Current Conversation** or press **⌘⇧Return**. Raycast closes before foreground identification:
+Invoke Raycast from the target agent window and run **Subscribe to Current Conversation**. You can assign it a global hotkey in **Raycast Preferences → Extensions**. The All Sessions action and **⌘⇧Return** shortcut invoke the same behavior. Raycast closes before foreground identification:
 
 - **Claude/Codex desktop:** Prefer native Accessibility document URLs containing session IDs. Otherwise use a unique current-document title; fall back to System Events only if native reads fail. Claude title matching requires a Code page ending in `- Claude Code`. Ordinary chats, home pages, ambiguous titles, or missing window data never trigger a guess based on recent activity.
 - **Terminal/iTerm2/Ghostty 1.4:** Match the selected tab or focused split by tty. tmux also matches the foreground client tty, server socket, and pane. Missing or ambiguous tty data produces an identification failure.
 
 Codex preserves native window titles when Electron exposes a generic page title, accepts external thread links and local/detached/hash routes, and reads supported catalog schemas by capability rather than a fixed version. A confirmed window match corrects earlier CLI/desktop classification while retaining live hook state. Foreground capture briefly waits for focus restoration after Raycast closes.
 
-Claude metadata maps `bridgeSessionIds` to `local_*` and CLI IDs, accepting older strings and newer arrays. Same-suffix `session_*` and `cse_*` IDs share the mapping; ambiguous mappings are rejected. Without local records, an explicit cloud Code session ID can still be subscribed to and reopened. It shows **Cloud status unavailable**, has no input reminders, and displays unknown dates as “—” instead of using subscription time as activity.
+Claude metadata maps `bridgeSessionIds` to `local_*` and CLI IDs, accepting older strings and newer arrays. Same-suffix `session_*` and `cse_*` IDs share the mapping; ambiguous mappings are rejected. Without local records, an explicit cloud Code session ID can still be subscribed to and reopened. A cloud icon identifies it in the lists and menu bar. The detail view explains that input reminders are unavailable. Unknown activity times are omitted from rows; subscription time is never used as activity.
 
 CLI current-window matching requires installed hooks to collect tty/tmux locators. Historical transcripts usually lack these, so select those sessions manually.
 
-Full live Codex desktop navigation validation remains pending; see the [test record](../TESTING.md) and [original investigation (Chinese)](codex-session-investigation.md). When permissions or terminal interfaces are unavailable, use manual selection.
+Current-window subscription and return to the correct Codex desktop conversation were verified by the user; see the [test record](../TESTING.md) for the remaining coverage. When permissions or terminal interfaces are unavailable, use manual selection.
 
 ## Jump back
 

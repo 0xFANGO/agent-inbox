@@ -6,33 +6,33 @@
 
 ## Requirements
 
-- macOS and Raycast. The extension uses macOS window, notification, and LaunchAgent APIs.
-- Node.js **22.22.2 or later**, npm, and Git. The minimum follows the locked Raycast API dependency; `.nvmrc` selects Node 24.
-- An existing Claude Code or Codex setup. Agent Inbox does not install or sign in to those clients.
+- macOS and Raycast, plus an existing Claude Code or Codex setup. Agent Inbox does not install or sign in to those clients.
 - The system `sqlite3` for local state and search indexes.
-- Optional `terminal-notifier` for clickable macOS notifications.
+- Optional `terminal-notifier` for clickable notifications.
+
+Hooks and the background collector use an existing Node.js installation when available, with Raycast's runtime as a fallback. Source development requires Node.js **22.22.2 or later**, npm, and Git; `.nvmrc` selects Node 24.
+
+## Install in Raycast
+
+Agent Inbox is not yet published in the Store. Once approved, open Raycast's **Store** command, search for **Agent Inbox**, and install it. Then connect an agent below. Store installation does not require cloning a repository or running npm. Until then, use a source checkout as described below.
 
 ## Install from source
 
-Source installation is currently available; there is no downloadable GitHub Release yet.
+For development or a PR review, check out the source branch and open the extension directory containing `package.json`. In the Raycast extensions repository this is `extensions/agent-inbox`.
 
 ```sh
-git clone https://github.com/0xFANGO/agent-inbox.git
-cd agent-inbox
 npm ci
 npm run dev
 ```
 
-Cloning requires GitHub access while the repository is private. With nvm, run `nvm install` before `npm ci`.
-
-`npm run dev` bundles the helper CLI and loads the extension with `ray develop`. Search for **Agent Inbox** in Raycast to find **All Sessions**, **Subscriptions**, and **Session Menu Bar**.
+`npm run dev` builds the helper CLI and imports the extension into Raycast. For release validation, stop the development process, run `npm run build`, and exercise the commands in Raycast. Search for **Agent Inbox** to find all four commands, including **Subscribe to Current Conversation**. A command can have its own hotkey in **Raycast Preferences → Extensions**.
 
 ### Connect your first agent
 
 1. Open **All Sessions**, then its action menu (⌘K), and choose **Connect an Agent**.
 2. Select Claude Code or Codex and press Return. The panel reports progress and the result.
 3. For Codex, approve new hooks with `/hooks` inside Codex. Whether an existing session loads new hooks depends on the client; verify with a new session if needed.
-4. In **All Sessions**, select a conversation and press ⌘Return to subscribe. To follow the focused conversation, invoke Raycast from the agent window and choose **Actions → Subscribe to Current Conversation** (⌘⇧Return).
+4. In **All Sessions**, select a conversation and press ⌘Return to subscribe. To follow the focused conversation, invoke Raycast from the agent window and run **Subscribe to Current Conversation** directly. All Sessions also keeps **Actions → Subscribe to Current Conversation** (⌘⇧Return).
 5. Open **Subscriptions**. Monitored sessions enter **Waiting for You** when an answer or permission is needed. With notifications enabled, new requests trigger an alert. Press Return to jump back.
 
 Start by subscribing to an existing session to check the list. Test alerts with a new question or permission request: recovering historical state does not send old notifications.

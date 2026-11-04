@@ -235,13 +235,15 @@ function Row(props: {
   match?: string;
 }) {
   const { s, t, config, showDetail } = props;
+  const cloud = isClaudeCloudOnly(s);
   const project = projectName(s.cwd);
   const accessories: List.Item.Accessory[] = [];
   if (s.subscribed) accessories.push({ icon: { source: Icon.Bell, tintColor: Color.Yellow }, tooltip: t("section.subscribed") });
   const dot = statusDot(s);
   if (dot) accessories.push({ icon: dot, tooltip: statusLabel(s, t) });
-  if (!showDetail && (s.status === "ready" || s.status === "unknown")) accessories.push({ text: statusLabel(s, t) });
-  if (!showDetail) accessories.push({ text: rowTime(s, t) });
+  if (cloud) accessories.push({ icon: Icon.Cloud, tooltip: t("host.cloud") });
+  else if (!showDetail && (s.status === "ready" || s.status === "unknown")) accessories.push({ text: statusLabel(s, t) });
+  if (!showDetail && (!cloud || s.updatedAt)) accessories.push({ text: rowTime(s, t) });
   if (props.match && !showDetail) accessories.push({ icon: Icon.MagnifyingGlass, tooltip: t("search.contentMatch") });
   const subtitle = [project, hostTag(s.host), props.match].filter(Boolean).join(" · ");
 

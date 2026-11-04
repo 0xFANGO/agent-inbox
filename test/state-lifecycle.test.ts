@@ -89,6 +89,60 @@ test("Claude and Codex collect structured questions and approvals without answer
   assert.ok(CODEX_HOOK_EVENTS.includes("PermissionRequest"));
 });
 
+test("Claude permission reminders cannot duplicate or outlive AskUserQuestion", () => {
+  const question = parseClaudeHook(
+    { session_id: "s", hook_event_name: "PreToolUse", tool_name: "AskUserQuestion", tool_use_id: "color-question" },
+    {},
+    101,
+  )!;
+  const reminder = parseClaudeHook(
+    { session_id: "s", hook_event_name: "Notification", notification_type: "permission_prompt", message: "Claude needs your input" },
+    {},
+    102,
+  )!;
+  const answer = parseClaudeHook(
+    {
+      session_id: "s",
+      hook_event_name: "PostToolUse",
+      tool_name: "AskUserQuestion",
+      tool_use_id: "color-question",
+      tool_response: { answers: { color: "Blue" } },
+    },
+    {},
+    103,
+  )!;
+  for (const events of [
+    [question, reminder],
+    [{ ...reminder, at: 100 }, question],
+  ]) {
+    const initial = { ...reduce([{ agent: "claude", type: "progress", at: 99 }]), subscribed: true };
+    const waiting = reduce(events, initial);
+    assert.equal(waiting.attention, "question");
+    assert.deepEqual(
+      waiting.state!.pending.map((request) => request.id),
+      ["color-question"],
+    );
+    assert.equal(applyEvent(waiting, { ...reminder, at: 104 })!.notify, false);
+    const answered = reduce([answer, { agent: "claude", type: "stopped", at: 105 }], waiting);
+    assert.equal(answered.status, "ready");
+    assert.deepEqual(answered.state!.pending, []);
+  }
+});
+
+test("independent structured approvals and failures survive an answered question", () => {
+  const waiting = reduce([
+    { type: "needs_input", attention: "permission", requestIds: ["approval"], at: 100 },
+    { type: "needs_input", attention: "question", requestIds: ["question"], at: 101 },
+    { type: "quota", at: 102 },
+  ]);
+  const answered = reduce([{ type: "resolved", requestIds: ["question"], at: 103 }], waiting);
+  assert.deepEqual(
+    answered.state!.pending.map((request) => request.id),
+    ["approval", "hint:quota"],
+  );
+  assert.equal(answered.status, "needs_input");
+});
+
 test("late transcript requests and matching replies reconcile after a newer stop without rolling back its phase", () => {
   const ready = reduce([
     { type: "progress", turnId: "t", at: 100 },

@@ -8,7 +8,8 @@ import { locale } from "./env";
 import { allSessions, store } from "./sessions";
 
 /**
- * All Sessions shortcut: close Raycast before identifying the session in the front window.
+ * Shared by the root command and All Sessions action. Capture the original window
+ * after Raycast closes, before reading history or showing a HUD.
  */
 export async function subscribeCurrent() {
   const { t } = locale();
