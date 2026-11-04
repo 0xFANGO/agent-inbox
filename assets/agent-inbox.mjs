@@ -1725,11 +1725,9 @@ function getAdapter(id) {
 
 // src/core/config.ts
 import { existsSync as existsSync6, mkdirSync as mkdirSync2, readFileSync as readFileSync7, writeFileSync as writeFileSync2 } from "node:fs";
-var DEFAULT_DEEPLINK_BASE = "raycast://extensions/0xFango/agent-inbox";
+var DEFAULT_DEEPLINK_BASE = "raycast://extensions/silencerichard/agent-inbox";
 var DEFAULT_CONFIG = {
-  language: "zh",
   notifications: true,
-  menuBarEnabled: true,
   contentSearchEnabled: false,
   deeplinkBase: DEFAULT_DEEPLINK_BASE,
   resumeTerminal: "terminal"
@@ -2057,153 +2055,8 @@ async function captureLocator(env, pid = process.ppid) {
   return loc;
 }
 
-// src/core/i18n.ts
-var zh = {
-  // sections
-  "section.needsInput": "\u5F85\u8F93\u5165",
-  "section.running": "\u8FD0\u884C\u4E2D",
-  "section.done": "\u5DF2\u5B8C\u6210",
-  "status.ready": "\u672C\u8F6E\u7ED3\u675F",
-  "status.unknown": "\u72B6\u6001\u672A\u786E\u8BA4",
-  "status.cloudUnavailable": "\u4E91\u7AEF\u72B6\u6001\u672A\u63A5\u5165",
-  "hud.cloudSubscribed": "\u5DF2\u8BA2\u9605\uFF1A{title}\uFF08\u4E91\u7AEF\u72B6\u6001\u6682\u4E0D\u53EF\u7528\uFF09",
-  "meta.cloudUnavailable": "\u5DF2\u4FDD\u5B58\u6B64\u4E91\u7AEF\u4F1A\u8BDD\uFF0C\u53EF\u4ECE\u8BA2\u9605\u5217\u8868\u8DF3\u56DE\u3002\u5F53\u524D\u5C1A\u672A\u63A5\u5165\u4E91\u7AEF\u8FD0\u884C\u72B6\u6001\uFF0C\u65E0\u6CD5\u63D0\u4F9B\u5F85\u8F93\u5165\u63D0\u9192\u3002",
-  "status.idle": "\u5C1A\u672A\u5F00\u59CB",
-  "attention.interrupted": "\u5DF2\u4E2D\u65AD",
-  "meta.status": "\u72B6\u6001",
-  "section.subscribed": "\u5DF2\u8BA2\u9605",
-  "section.general": "\u901A\u7528",
-  "section.agents": "Agent",
-  "section.dataAndAlerts": "\u663E\u793A\u4E0E\u63D0\u9192",
-  // nav titles
-  "nav.inbox": "\u8BA2\u9605\u5217\u8868",
-  "nav.all": "\u5168\u90E8\u4F1A\u8BDD",
-  "nav.setup": "\u63A5\u5165 Agent",
-  "nav.settings": "\u8BBE\u7F6E",
-  "nav.menuBar": "Agent Inbox \xB7 \u8BA2\u9605\u4F1A\u8BDD",
-  "filter.title": "\u7B5B\u9009\u4F1A\u8BDD",
-  "search.settingsPlaceholder": "\u641C\u7D22\u8BBE\u7F6E",
-  "search.placeholder": "\u641C\u7D22",
-  "search.allPlaceholder": "\u641C\u7D22\u6807\u9898\u3001\u4F1A\u8BDD\u5185\u5BB9",
-  "search.titlesPlaceholder": "\u641C\u7D22\u4F1A\u8BDD\u6807\u9898\u3001\u9879\u76EE",
-  "search.enable": "\u542F\u7528\u4F1A\u8BDD\u5168\u6587\u641C\u7D22",
-  "search.enableTitle": "\u52A0\u8F7D\u5168\u90E8\u672C\u5730\u4F1A\u8BDD\u5185\u5BB9\uFF1F",
-  "search.enableDescription": "\u5C06\u8BFB\u53D6\u5168\u90E8\u672C\u5730\u4F1A\u8BDD\u7684\u7528\u6237\u4E0E Agent \u6D88\u606F\uFF0C\u5E76\u5728\u672C\u673A\u5EFA\u7ACB\u641C\u7D22\u7D22\u5F15\uFF0C\u4E0D\u4E0A\u4F20\u5185\u5BB9\u3002\u9996\u6B21\u52A0\u8F7D\u4F1A\u5360\u7528\u65F6\u95F4\u548C\u78C1\u76D8\u7A7A\u95F4\uFF0C\u540E\u7EED\u53EA\u66F4\u65B0\u6709\u53D8\u5316\u7684\u8BB0\u5F55\u3002\u53EF\u968F\u65F6\u5728\u8BBE\u7F6E\u4E2D\u5173\u95ED\u3002",
-  "search.disabledDescription": "\u786E\u8BA4\u540E\u624D\u52A0\u8F7D\u5168\u90E8\u5BF9\u8BDD\uFF1B\u5F53\u524D\u4EC5\u641C\u7D22\u6807\u9898\u3001\u9879\u76EE\u548C\u4F1A\u8BDD ID",
-  "settings.contentSearch": "\u4F1A\u8BDD\u5168\u6587\u641C\u7D22",
-  "settings.contentSearchSub": "\u68C0\u7D22\u672C\u5730\u4F1A\u8BDD\u7684\u5B8C\u6574\u5BF9\u8BDD\u5185\u5BB9",
-  "search.indexing": "\u6B63\u5728\u7D22\u5F15\u4F1A\u8BDD\u5185\u5BB9 {n}/{total}",
-  "search.indexingDesc": "\u6807\u9898\u641C\u7D22\u53EF\u7ACB\u5373\u4F7F\u7528\uFF0C\u5185\u5BB9\u641C\u7D22\u4F1A\u968F\u7D22\u5F15\u5B8C\u6210\u800C\u8865\u5168",
-  "search.indexFailed": "\u90E8\u5206\u4F1A\u8BDD\u5185\u5BB9\u672A\u80FD\u7D22\u5F15",
-  "search.indexFailedDesc": "{n} \u4E2A\u8BB0\u5F55\u65E0\u6CD5\u8BFB\u53D6\uFF1B\u4ECD\u53EF\u641C\u6807\u9898\uFF0C\u6309 \u2318R \u91CD\u8BD5",
-  "search.contentMatch": "\u547D\u4E2D\u4F1A\u8BDD\u5185\u5BB9",
-  // actions
-  "action.jump": "\u8DF3\u8F6C",
-  "action.handled": "\u5DF2\u5904\u7406",
-  "action.unhandled": "\u79FB\u56DE\u8BA2\u9605\u5217\u8868",
-  "action.subscribe": "\u8BA2\u9605",
-  "action.subscribeCurrent": "\u8BA2\u9605\u5F53\u524D\u7A97\u53E3\u5BF9\u8BDD",
-  "subscribe.currentSub": "\u8BC6\u522B\u524D\u53F0\u7A97\u53E3\u4E2D\u7684 Agent \u4F1A\u8BDD",
-  "action.openAll": "\u6D4F\u89C8\u5168\u90E8\u4F1A\u8BDD",
-  "action.unsubscribe": "\u53D6\u6D88\u8BA2\u9605",
-  "action.detail": "\u8BE6\u60C5",
-  "action.hideDetail": "\u6536\u8D77\u8BE6\u60C5",
-  "action.archiveDone": "\u5F52\u6863\u5DF2\u5B8C\u6210",
-  "action.openInbox": "\u6253\u5F00\u8BA2\u9605\u5217\u8868",
-  "action.openSetup": "\u63A5\u5165 Agent",
-  "action.install": "\u63A5\u5165",
-  "action.reinstall": "\u91CD\u65B0\u63A5\u5165",
-  "action.uninstall": "\u79FB\u9664 hooks",
-  "action.openFolder": "\u6253\u5F00\u76EE\u5F55",
-  "action.toggleOn": "\u6253\u5F00",
-  "action.toggleOff": "\u5173\u95ED",
-  "action.refresh": "\u5237\u65B0",
-  "action.preferences": "\u6253\u5F00\u6269\u5C55\u8BBE\u7F6E",
-  // hosts & agents
-  "host.app": "\u684C\u9762\u7AEF",
-  "host.cli": "CLI",
-  "agent.claude": "Claude",
-  "agent.codex": "Codex",
-  // detail metadata
-  "meta.agent": "Agent",
-  "meta.project": "\u9879\u76EE",
-  "meta.started": "\u5F00\u59CB",
-  "meta.activity": "\u6700\u8FD1\u6D3B\u52A8",
-  "meta.noSummary": "\u8FD8\u6CA1\u6709\u6D88\u606F",
-  // attention
-  "attention.input": "\u7B49\u4F60\u8F93\u5165",
-  "attention.question": "\u7B49\u4F60\u56DE\u7B54",
-  "attention.permission": "\u7B49\u4F60\u6388\u6743",
-  "attention.failed": "\u5931\u8D25\u4E86",
-  "attention.quota": "\u989D\u5EA6\u7528\u5B8C",
-  // time
-  "time.justNow": "\u521A\u521A",
-  "time.minutes": "{n} \u5206\u949F\u524D",
-  "time.hours": "{n} \u5C0F\u65F6\u524D",
-  "time.yesterday": "\u6628\u5929",
-  "time.days": "{n} \u5929\u524D",
-  "time.since": "{t} \u8D77",
-  "time.today": "\u4ECA\u5929 {t}",
-  // empty states
-  "empty.inbox.title": "\u6CA1\u6709\u5DF2\u8BA2\u9605\u7684\u4F1A\u8BDD",
-  "empty.inbox.desc": "\u5728\u300C\u5168\u90E8\u4F1A\u8BDD\u300D\u4E2D\u8BA2\u9605\uFF0C\u968F\u65F6\u67E5\u770B\u8FDB\u5C55\u6216\u8DF3\u8F6C\u56DE\u5BF9\u8BDD",
-  "empty.onboard.title": "\u8FD8\u6CA1\u63A5\u5165\u4EFB\u4F55 Agent",
-  "empty.onboard.desc": "\u5728\u8BBE\u7F6E\u4E2D\u63A5\u5165 Claude Code \u6216 Codex\uFF0C\u518D\u9009\u62E9\u4F1A\u8BDD\u8BA2\u9605",
-  "empty.all.title": "\u6CA1\u6709\u627E\u5230\u4F1A\u8BDD",
-  "empty.all.desc": "~/.claude/projects \u548C ~/.codex/sessions \u91CC\u6CA1\u6709\u4F1A\u8BDD\u8BB0\u5F55",
-  "empty.menu": "\u6CA1\u6709\u5DF2\u8BA2\u9605\u7684\u4F1A\u8BDD",
-  "empty.filter.desc": "\u8BD5\u8BD5\u5176\u4ED6\u5206\u7C7B\u6216\u641C\u7D22\u8BCD",
-  // toasts / hud
-  "hud.subscribed": "\u5DF2\u8BA2\u9605 \xB7 {title}",
-  "hud.unsubscribed": "\u5DF2\u53D6\u6D88\u8BA2\u9605 \xB7 {title}",
-  "hud.handled": "\u5DF2\u5904\u7406 \xB7 {title}",
-  "hud.archived": "\u5DF2\u5F52\u6863 {n} \u4E2A\u5DF2\u5B8C\u6210\u4F1A\u8BDD",
-  "hud.notFound": "\u65E0\u6CD5\u786E\u5B9A\u5F53\u524D\u4F1A\u8BDD\uFF0C\u8BF7\u5230\u300C\u5168\u90E8\u4F1A\u8BDD\u300D\u9009\u62E9\u5E76\u8BA2\u9605",
-  "hud.focusPermission": "\u65E0\u6CD5\u8BFB\u53D6\u5F53\u524D\u7A97\u53E3\uFF0C\u8BF7\u68C0\u67E5 Raycast \u7684\u8F85\u52A9\u529F\u80FD\u4E0E\u81EA\u52A8\u5316\u6743\u9650",
-  "hud.alreadySubscribed": "\u5DF2\u5728\u8BA2\u9605\u4E2D \xB7 {title}",
-  "toast.jumpFailed": "\u8DF3\u56DE\u5931\u8D25",
-  "toast.copiedId": "\u5DF2\u590D\u5236\u4F1A\u8BDD ID\uFF0C\u8BF7\u5728 App \u91CC\u7C98\u8D34\u6253\u5F00",
-  "toast.resumed": "\u5DF2\u5728\u65B0\u7EC8\u7AEF\u6062\u590D\u4F1A\u8BDD",
-  "toast.installing": "\u6B63\u5728\u63A5\u5165 {name}",
-  "toast.installed": "{name} \u63A5\u5165\u6210\u529F",
-  "toast.uninstalled": "\u5DF2\u79FB\u9664 {name} \u7684 hooks",
-  "toast.installFailed": "\u63A5\u5165\u5931\u8D25",
-  "toast.uninstallFailed": "\u79FB\u9664\u5931\u8D25",
-  "toast.menuBarFailed": "\u65E0\u6CD5\u66F4\u65B0\u83DC\u5355\u680F\u663E\u793A",
-  "toast.error": "\u51FA\u9519\u4E86",
-  // confirm
-  "confirm.jumpTitle": "\u8DF3\u56DE {target}\uFF1F",
-  "confirm.cancel": "\u53D6\u6D88",
-  // settings
-  "settings.agentsSub": "Claude Code \u4E0E Codex",
-  "settings.menuBar": "\u5728\u83DC\u5355\u680F\u663E\u793A\u8BA2\u9605\u4F1A\u8BDD",
-  "settings.menuBarSub": "\u5FEB\u901F\u67E5\u770B\u8BA2\u9605\u5217\u8868\u548C\u5F85\u8F93\u5165\u6570\u91CF",
-  "settings.menuBarUnavailable": "\u8BF7\u5728\u6269\u5C55\u8BBE\u7F6E\u4E2D\u542F\u7528\u300C\u5237\u65B0\u83DC\u5355\u680F\u300D\u540E\u91CD\u8BD5",
-  "settings.language": "\u8BED\u8A00 / Language",
-  "settings.languageSub": "\u754C\u9762\u548C\u7CFB\u7EDF\u901A\u77E5\u4F7F\u7528\u7684\u8BED\u8A00",
-  // setup
-  "setup.ready": "\u5DF2\u5B89\u88C5",
-  "setup.install": "\u672A\u63A5\u5165",
-  "setup.installing": "\u63A5\u5165\u4E2D",
-  "setup.installNotDetected": "\u672A\u80FD\u786E\u8BA4\u63A5\u5165\u72B6\u6001\uFF0C\u8BF7\u91CD\u8BD5",
-  "setup.notFound": "\u672A\u68C0\u6D4B\u5230",
-  "setup.on": "\u5F00",
-  "setup.off": "\u5173",
-  "setup.claudeHosts": "CLI \xB7 \u684C\u9762\u7AEF",
-  "setup.codexHosts": "CLI \xB7 \u684C\u9762\u7AEF",
-  "setup.notifications": "\u7CFB\u7EDF\u901A\u77E5",
-  "setup.notificationsSub": "\u4EC5\u5DF2\u8BA2\u9605\u7684\u4F1A\u8BDD\u5F85\u8F93\u5165\u65F6\u63D0\u9192",
-  "setup.resumeTerminal": "\u9ED8\u8BA4\u7EC8\u7AEF",
-  "setup.resumeTerminalSub": "\u65E0\u6CD5\u5B9A\u4F4D\u539F\u7A97\u53E3\u65F6\uFF0C\u7528\u4E8E\u6062\u590D\u4F1A\u8BDD",
-  "setup.history": "\u5386\u53F2\u4F1A\u8BDD",
-  "setup.historySub": "\u6253\u5F00\u300C\u5168\u90E8\u4F1A\u8BDD\u300D\u65F6\u626B\u63CF\uFF0C\u4E0D\u5BFC\u5165",
-  "setup.uninstallIntro": "\u5C06\u79FB\u9664\u672C\u63D2\u4EF6\u5199\u5165\u7684\u6761\u76EE\uFF0C\u5176\u4F59\u914D\u7F6E\u4FDD\u6301\u4E0D\u53D8\u3002",
-  "setup.nodeMissing": "\u6CA1\u627E\u5230 node\uFF0Chook \u9700\u8981 Node.js \u624D\u80FD\u8FD0\u884C\u3002",
-  "setup.codexHooksNote": "Codex \u9996\u6B21\u52A0\u8F7D\u65B0 hook \u65F6\uFF0C\u9700\u8981\u5728 Codex \u91CC\u8FD0\u884C /hooks \u786E\u8BA4\u3002",
-  // notifications (hook CLI)
-  "notify.waiting": "\u7B49\u4F60\u8F93\u5165"
-};
-var en = {
+// src/core/messages.ts
+var messages = {
   "section.needsInput": "Waiting for You",
   "section.running": "Running",
   "section.done": "Completed",
@@ -2216,25 +2069,16 @@ var en = {
   "attention.interrupted": "Interrupted",
   "meta.status": "Status",
   "section.subscribed": "Subscribed",
-  "section.general": "General",
-  "section.agents": "Agents",
-  "section.dataAndAlerts": "Display & Alerts",
   "nav.inbox": "Subscriptions",
   "nav.all": "All Sessions",
   "nav.setup": "Connect an Agent",
-  "nav.settings": "Settings",
   "nav.menuBar": "Agent Inbox \xB7 Subscribed Sessions",
   "filter.title": "Filter Sessions",
-  "search.settingsPlaceholder": "Search settings",
   "search.placeholder": "Search",
   "search.allPlaceholder": "Search titles and conversation content",
   "search.titlesPlaceholder": "Search conversation titles and projects",
-  "search.enable": "Enable Full-Text Search",
-  "search.enableTitle": "Load All Local Conversations?",
-  "search.enableDescription": "Read user and agent messages from all local conversations and build a search index on this Mac. Nothing is uploaded. The initial load takes time and disk space; later refreshes only process changed files. You can turn this off in Settings.",
-  "search.disabledDescription": "Content loads only after confirmation. Currently searching titles, projects, and session IDs",
-  "settings.contentSearch": "Full-Text Session Search",
-  "settings.contentSearchSub": "Search the complete dialogue in local sessions",
+  "search.enable": "Set Up Full-Text Search",
+  "search.disabledDescription": "Enable Full-Text Search in extension preferences to search conversation content",
   "search.indexing": "Indexing conversation content {n}/{total}",
   "search.indexingDesc": "Titles are searchable now; content results fill in as indexing completes",
   "search.indexFailed": "Some conversations could not be indexed",
@@ -2257,8 +2101,6 @@ var en = {
   "action.reinstall": "Reconnect",
   "action.uninstall": "Remove Hooks",
   "action.openFolder": "Open Folder",
-  "action.toggleOn": "Turn On",
-  "action.toggleOff": "Turn Off",
   "action.refresh": "Refresh",
   "action.preferences": "Open Extension Preferences",
   "host.app": "Desktop",
@@ -2285,7 +2127,7 @@ var en = {
   "empty.inbox.title": "No subscribed sessions",
   "empty.inbox.desc": "Subscribe in All Sessions to follow progress and jump back",
   "empty.onboard.title": "No agent connected yet",
-  "empty.onboard.desc": "Connect Claude Code or Codex in Settings, then subscribe to a session",
+  "empty.onboard.desc": "Choose Connect an Agent from the action menu, then subscribe to a session",
   "empty.all.title": "No sessions found",
   "empty.all.desc": "Nothing in ~/.claude/projects or ~/.codex/sessions",
   "empty.menu": "No subscribed sessions",
@@ -2305,43 +2147,26 @@ var en = {
   "toast.uninstalled": "Hooks removed for {name}",
   "toast.installFailed": "Connection failed",
   "toast.uninstallFailed": "Removal failed",
-  "toast.menuBarFailed": "Couldn't update menu bar visibility",
   "toast.error": "Something went wrong",
   "confirm.jumpTitle": "Jump back to {target}?",
   "confirm.cancel": "Cancel",
-  "settings.agentsSub": "Claude Code and Codex",
-  "settings.menuBar": "Show Subscribed Sessions in Menu Bar",
-  "settings.menuBarSub": "Quick access to subscriptions and the waiting count",
-  "settings.menuBarUnavailable": "Enable Refresh Menu Bar in extension preferences, then try again",
-  "settings.language": "Language / \u8BED\u8A00",
-  "settings.languageSub": "Language for the interface and system notifications",
   "setup.ready": "Installed",
   "setup.install": "Not Connected",
   "setup.installing": "Connecting",
   "setup.installNotDetected": "Connection could not be verified. Try again.",
   "setup.notFound": "Not found",
-  "setup.on": "On",
-  "setup.off": "Off",
   "setup.claudeHosts": "CLI \xB7 Desktop",
   "setup.codexHosts": "CLI \xB7 Desktop",
-  "setup.notifications": "System Notifications",
-  "setup.notificationsSub": "Only subscribed sessions waiting for input",
-  "setup.resumeTerminal": "Default Terminal",
-  "setup.resumeTerminalSub": "Used to resume a session when its original window is unavailable",
-  "setup.history": "Past Sessions",
-  "setup.historySub": "Scanned when All Sessions opens, never imported",
   "setup.uninstallIntro": "Only the entries written by this extension are removed.",
   "setup.nodeMissing": "Node.js was not found. Hooks need it to run.",
   "setup.codexHooksNote": "Codex asks you to approve new hooks once: run /hooks inside Codex.",
   "notify.waiting": "Waiting for you"
 };
-var dictionaries = { zh, en };
-function translator(lang) {
-  const dict = dictionaries[lang] ?? zh;
+function translator() {
   return (key2, vars) => {
-    let s3 = dict[key2] ?? zh[key2] ?? key2;
-    if (vars) for (const [k, v] of Object.entries(vars)) s3 = s3.split(`{${k}}`).join(String(v));
-    return s3;
+    let value = messages[key2];
+    if (vars) for (const [name, replacement] of Object.entries(vars)) value = value.split(`{${name}}`).join(String(replacement));
+    return value;
   };
 }
 
@@ -2381,7 +2206,7 @@ function macosChannel(link = raycastNotificationLink) {
   return {
     id: "macos",
     async send(message, { config }) {
-      const t = translator(config.language);
+      const t = translator();
       const title = t(message.attention && message.attention !== "input" ? `attention.${message.attention}` : "notify.waiting");
       const notifier = terminalNotifierPath();
       const result = notifier ? await run(

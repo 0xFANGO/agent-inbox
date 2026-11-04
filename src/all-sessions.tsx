@@ -1,11 +1,11 @@
 import { statusLabel } from "./core/format";
-import { Action, ActionPanel, Color, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, Keyboard, List, openExtensionPreferences, showToast, Toast } from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
 import { useEffect, useMemo, useState } from "react";
 import { hostTag, rowTime } from "./core/format";
 import { isClaudeCloudOnly } from "./core/claude-desktop";
 import { scanHistory } from "./core/history";
-import { Translator } from "./core/i18n";
+import { Translator } from "./core/messages";
 import { projectName } from "./core/paths";
 import { mergeSessions } from "./core/merge";
 import { filterSessions, SessionFilter } from "./core/status";
@@ -16,14 +16,12 @@ import { SessionDetail } from "./components/SessionDetail";
 import { locale } from "./lib/env";
 import { allSessions, jumpBack, store, refreshSessionTitles } from "./lib/sessions";
 import { subscribeCurrent } from "./lib/subscribe-current";
-import Settings from "./settings";
-import { useContentSearch } from "./lib/content-search";
+import { ConnectionActions } from "./components/ConnectionActions";
 
 const key = (s: { agent: string; sessionId: string }) => `${s.agent}:${s.sessionId}`;
 
 export default function AllSessions() {
   const { t, config } = locale();
-  const contentSearch = useContentSearch(t);
   const [showDetail, setShowDetail] = useState(false);
   const [filter, setFilter] = useState<SessionFilter>("all");
   const [search, setSearch] = useState("");
@@ -60,7 +58,7 @@ export default function AllSessions() {
   }, [search]);
 
   useEffect(() => {
-    if (!contentSearch.enabled || !data) {
+    if (!config.contentSearchEnabled || !data) {
       setIndexing(false);
       setIndexProgress({ completed: 0, total: 0, updated: 0, failed: 0 });
       return;
@@ -81,11 +79,11 @@ export default function AllSessions() {
         setIndexProgress((progress) => ({ ...progress, failed: Math.max(1, progress.failed) }));
       });
     return () => controller.abort();
-  }, [data, index, contentSearch.enabled]);
+  }, [data, index, config.contentSearchEnabled]);
 
   useEffect(() => {
     let current = true;
-    if (!contentSearch.enabled || !debouncedSearch.trim()) {
+    if (!config.contentSearchEnabled || !debouncedSearch.trim()) {
       setContentMatches({});
       setSearching(false);
       return;
@@ -105,9 +103,9 @@ export default function AllSessions() {
     return () => {
       current = false;
     };
-  }, [debouncedSearch, index, indexRevision, contentSearch.enabled]);
+  }, [debouncedSearch, index, indexRevision, config.contentSearchEnabled]);
 
-  const sessions = searchSessions(filterSessions(data ?? [], filter), search, contentSearch.enabled ? contentMatches : {}).filter(
+  const sessions = searchSessions(filterSessions(data ?? [], filter), search, config.contentSearchEnabled ? contentMatches : {}).filter(
     (s) => search.trim() || s.title || s.summary || s.subscribed || s.status !== "idle",
   );
   const quickActionVisible = search.trim().length === 0;
@@ -135,8 +133,7 @@ export default function AllSessions() {
     <List
       isLoading={isLoading || indexing || searching || search !== debouncedSearch}
       isShowingDetail={showDetail && sessions.length > 0 && selectedId !== "subscribe-current"}
-      navigationTitle={t("nav.all")}
-      searchBarPlaceholder={t(contentSearch.enabled ? "search.allPlaceholder" : "search.titlesPlaceholder")}
+      searchBarPlaceholder={t(config.contentSearchEnabled ? "search.allPlaceholder" : "search.titlesPlaceholder")}
       onSearchTextChange={setSearch}
       filtering={false}
       onSelectionChange={setSelectedId}
@@ -153,7 +150,7 @@ export default function AllSessions() {
       actions={
         <ActionPanel>
           <Action title={t("action.refresh")} icon={Icon.ArrowClockwise} onAction={revalidate} />
-          <Action.Push title={t("nav.settings")} icon={Icon.Gear} target={<Settings />} />
+          <ConnectionActions />
         </ActionPanel>
       }
     >
@@ -168,13 +165,13 @@ export default function AllSessions() {
             actions={
               <ActionPanel>
                 <Action title={t("action.subscribeCurrent")} icon={Icon.Bell} onAction={subscribeCurrent} />
-                <Action.Push title={t("nav.settings")} icon={Icon.Gear} target={<Settings />} />
+                <ConnectionActions />
               </ActionPanel>
             }
           />
         </List.Section>
       )}
-      {contentSearch.enabled && (indexing || indexProgress.failed > 0) && (
+      {config.contentSearchEnabled && (indexing || indexProgress.failed > 0) && (
         <List.Section>
           <List.Item
             id="search-index-status"
@@ -216,14 +213,14 @@ export default function AllSessions() {
             onToggleDetail={() => setShowDetail((v) => !v)}
             onToggle={() => toggle(s)}
             onRefresh={revalidate}
-            match={contentSearch.enabled && search.trim() ? contentMatches[key(s)]?.snippet : undefined}
+            match={config.contentSearchEnabled && search.trim() ? contentMatches[key(s)]?.snippet : undefined}
           />
         ))}
-        {!isLoading && sessions.length === 0 && (quickActionVisible || !contentSearch.enabled) && (
+        {!isLoading && sessions.length === 0 && (quickActionVisible || !config.contentSearchEnabled) && (
           <List.Item icon={Icon.MagnifyingGlass} title={t("empty.all.title")} subtitle={t("empty.filter.desc")} />
         )}
       </List.Section>
-      {!contentSearch.enabled && !quickActionVisible && (
+      {!config.contentSearchEnabled && !quickActionVisible && (
         <List.Section>
           <List.Item
             id="enable-content-search"
@@ -232,7 +229,7 @@ export default function AllSessions() {
             subtitle={t("search.disabledDescription")}
             actions={
               <ActionPanel>
-                <Action title={t("search.enable")} onAction={() => contentSearch.setEnabled(true)} />
+                <Action title={t("search.enable")} onAction={openExtensionPreferences} />
               </ActionPanel>
             }
           />
@@ -293,7 +290,7 @@ function Row(props: {
             shortcut={Keyboard.Shortcut.Common.Refresh}
             onAction={props.onRefresh}
           />
-          <Action.Push title={t("nav.settings")} icon={Icon.Gear} target={<Settings />} />
+          <ConnectionActions />
         </ActionPanel>
       }
     />

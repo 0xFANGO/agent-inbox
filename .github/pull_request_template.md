@@ -1,11 +1,11 @@
-## 问题与结果
+## Problem and result
 
-<!-- 什么场景下出现什么问题？修改后用户会看到什么行为？关联 Issue： -->
+<!-- What triggers the problem? What will the user see after this change? Link the related issue. -->
 
-## 验证
+## Validation
 
-<!-- 列出实际执行的命令、结果与实机检查。未执行的检查请明确说明。 -->
+<!-- List commands, results, and live checks actually performed. Identify checks that were not run. -->
 
-## 兼容性与限制
+## Compatibility and limits
 
-<!-- 是否影响现有 Hook、订阅、状态、数据格式或跳回？如需迁移，请写明步骤。 -->
+<!-- Does this affect existing hooks, subscriptions, state, data formats, or navigation? Document any migration steps. -->

@@ -2,8 +2,8 @@
 
 Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.
 
-[![Platform: Raycast](docs/images/raycast-platform.svg)](https://www.raycast.com/)
-[![OS: macOS](docs/images/macos-platform.svg)](https://www.apple.com/macos/)
+[![Platform: Raycast](media/raycast-platform.svg)](https://www.raycast.com/)
+[![OS: macOS](media/macos-platform.svg)](https://www.apple.com/macos/)
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -37,26 +37,25 @@ npm ci
 npm run dev
 ```
 
-1. Search for **Agent Inbox** in Raycast. Open **设置 (Settings) → 接入 Agent (Connect an Agent)** and connect Claude Code or Codex. For Codex, approve the new hooks with `/hooks` in the client.
-2. Open **全部会话 (All Sessions)**, select a session, and press Return to subscribe.
-3. Open **订阅列表 (Subscriptions)** to see its status and press Return to jump back. Sessions with monitoring support notify you about new requests; importing historical state does not send old notifications.
+1. Search for **Agent Inbox** in Raycast. Open **All Sessions → Actions (⌘K) → Connect an Agent** and connect Claude Code or Codex. For Codex, approve the new hooks with `/hooks` in the client.
+2. Open **All Sessions**, select a session, and press Return to subscribe.
+3. Open **Subscriptions** to see its status and press Return to jump back. Sessions with monitoring support notify you about new requests; importing historical state does not send old notifications.
 
-The interface defaults to Chinese. To use English, open **设置 (Settings) → 语言 / Language** and choose **English** in the extension preferences. Raycast's root command names currently remain Chinese; their English meanings are shown above.
+The interface and notifications use English. Open **Actions → Open Extension Preferences** for terminal, notification, and full-text search options.
 
-Connecting an agent installs local hooks and a user background collector, backing up existing configuration before editing it. See the [setup guide (简体中文)](docs/setup.md) for permissions, clickable notifications, data locations, and removal instructions.
+Connecting an agent installs local hooks and a user background collector, backing up existing configuration before editing it. See the [setup guide](docs/setup.md) for permissions, clickable notifications, data locations, and removal instructions.
 
 ## Everyday use
 
-| Raycast command               | Purpose                                                                | Shortcuts                                      |
-| ----------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
-| 全部会话 · All Sessions       | Search and filter sessions; subscribe to the current window            | ↵ / ⌘S subscribe · ⌘↵ jump back · ⌘I details   |
-| 订阅列表 · Subscriptions      | Act on the sessions you follow                                         | ↵ jump back · ⌘D mark handled · ⌘S unsubscribe |
-| 设置 · Settings               | Manage agents, language, terminal, full-text search, and notifications | ↵ open a setting                               |
-| 刷新菜单栏 · Refresh Menu Bar | Refresh subscribed sessions and the waiting count                      | Toggle visibility in Settings                  |
+| Raycast command  | Purpose                                                     | Shortcuts                                          |
+| ---------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| All Sessions     | Search and filter sessions; subscribe to the current window | ↵ / ⌘S subscribe · ⌘↵ jump back · ⌘I details       |
+| Subscriptions    | Act on the sessions you follow                              | ↵ jump back · ⌘D mark handled · ⌘S unsubscribe     |
+| Session Menu Bar | Show subscribed sessions and the waiting count              | Enable or disable in Raycast's command preferences |
 
 **Waiting for input** includes questions, permission requests, and failures, quota limits, or interruptions that need attention. **Turn ended** means the agent stopped this turn; **Completed** requires an explicit completion event. Marking a session handled hides it until its state changes or a new request arrives.
 
-See the [usage guide (简体中文)](docs/usage.md) for all shortcuts, status rules, title synchronization, and navigation fallbacks.
+See the [usage guide](docs/usage.md) for all shortcuts, status rules, title synchronization, and navigation fallbacks.
 
 ## Compatibility
 
@@ -75,15 +74,16 @@ Agent Inbox manages conversations you already run. It does not host agents, assi
 
 State, subscriptions, configuration, and the notification queue live in `~/.sessions/`. Agent transcripts are read-only; there is no conversation upload service.
 
-| Setting              | Values / default                                 | Behavior                                                                                       |
-| -------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Language             | Chinese / English; Chinese by default            | Changes interface and notification language through Raycast extension preferences              |
-| Default terminal     | Terminal / iTerm2 / Ghostty; Terminal by default | Resumes a CLI session when the original window cannot be found                                 |
-| System notifications | On / off; on by default                          | Alerts only for subscribed, unhandled sessions that still need attention                       |
-| Menu bar             | On / off; on by default                          | Shows subscribed sessions and the waiting count                                                |
-| Full-text search     | On / off; off by default                         | Indexes user and agent messages locally after confirmation; excludes tool output and reasoning |
+| Setting              | Values / default                                 | Behavior                                                                                                |
+| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Default terminal     | Terminal / iTerm2 / Ghostty; Terminal by default | Resumes a CLI session when the original window cannot be found                                          |
+| System notifications | On / off; on by default                          | Alerts only for subscribed, unhandled sessions that still need attention                                |
+| Menu bar             | Raycast command enable/disable                   | Shows subscribed sessions and the waiting count                                                         |
+| Full-text search     | On / off; off by default                         | Indexes user and agent messages locally when enabled in preferences; excludes tool output and reasoning |
 
-The full-text index is stored at `~/.sessions/cache/conversation-search.sqlite`. Turning search off stops indexing and content queries; it does not delete the existing index. See [search and privacy (简体中文)](docs/usage.md#搜索).
+Changes to native preferences sync to the background collector when you next open an extension command.
+
+The full-text index is stored at `~/.sessions/cache/conversation-search.sqlite`. Turning search off stops indexing and content queries; it does not delete the existing index. See [search and privacy](docs/usage.md#search).
 
 ## Development and contributing
 
@@ -93,15 +93,15 @@ npm run check  # Tests, types, ESLint / Prettier, CLI and Raycast builds
 npm run dev    # Load the development extension in Raycast
 ```
 
-The detailed guides below are currently in Simplified Chinese:
+Documentation defaults to English, with a Simplified Chinese edition linked at the top of each guide:
 
 - [Contributing](CONTRIBUTING.md): development, reproducing problems, and pull requests.
 - [CLI](docs/cli.md) · [Architecture](docs/architecture.md) · [Integration interfaces](docs/integrations.md).
-- [Test record](TESTING.md) · [Changelog](CHANGELOG.md) · [Release preparation](docs/releasing.md).
+- [Test record](TESTING.md) · [Changelog](CHANGELOG.md).
 - [Product and logo design brief](docs/brand-brief.md).
 
-Use [Issues](https://github.com/0xFANGO/agent-inbox/issues) for questions and suggestions. For security reports, read the [security policy (简体中文)](SECURITY.md) first.
+Use [Issues](https://github.com/0xFANGO/agent-inbox/issues) for questions and suggestions. For security reports, read the [security policy](SECURITY.md) first.
 
 ## License
 
-Source code is licensed under [MIT](LICENSE). Third-party icons and bundled tools retain their respective rights; see [asset review notes (简体中文)](docs/releasing.md#公开前尚需确认).
+Source code is licensed under [MIT](LICENSE). Third-party icons and bundled tools retain their respective rights. See the [platform icon sources](media/README.md).

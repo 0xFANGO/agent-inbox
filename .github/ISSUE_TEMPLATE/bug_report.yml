@@ -1,31 +1,31 @@
-name: Bug 报告
-description: 报告会话、通知或跳转的问题
+name: Bug report
+description: Report a session, notification, or navigation problem
 body:
   - type: markdown
     attributes:
-      value: 请使用脱敏样本，不要上传完整会话、数据库或配置。安全漏洞请先阅读 SECURITY.md。
+      value: Use redacted samples. Do not upload complete conversations, databases, or configuration. For vulnerabilities, read SECURITY.md first.
   - type: textarea
     id: environment
     attributes:
-      label: 环境
-      description: commit / 版本、macOS、Raycast、Agent 版本，以及 CLI / 桌面 / 云端、终端或 tmux 环境。
+      label: Environment
+      description: Commit/release, macOS, Raycast, agent version, CLI/desktop/cloud source, and terminal or tmux setup.
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
-      label: 复现步骤
-      description: 从哪个命令开始，执行什么操作后出现问题？
+      label: Steps to reproduce
+      description: Which command did you open, and which actions led to the problem?
     validations:
       required: true
   - type: textarea
     id: behavior
     attributes:
-      label: 预期与实际结果
+      label: Expected and actual behavior
     validations:
       required: true
   - type: textarea
     id: evidence
     attributes:
-      label: 脱敏日志或截图
-      description: 只保留重现问题所需的片段，删除真实路径、对话和凭据。
+      label: Redacted logs or screenshots
+      description: Include only what is needed to reproduce the issue. Remove private paths, conversations, and credentials.

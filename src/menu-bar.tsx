@@ -1,4 +1,4 @@
-import { Color, Icon, launchCommand, LaunchType, MenuBarExtra } from "@raycast/api";
+import { Color, Icon, launchCommand, LaunchType, MenuBarExtra, openExtensionPreferences } from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
 import { rowTime, statusLabel } from "./core/format";
 import { groupInbox, waitingCount } from "./core/status";
@@ -7,18 +7,16 @@ import { locale } from "./lib/env";
 import { activeSessions, jumpBack } from "./lib/sessions";
 
 /**
- * When enabled in Settings, shows subscribed sessions and their waiting count.
+ * When enabled in Raycast preferences, shows subscribed sessions and their waiting count.
  * Refreshed by Raycast's background refresh (interval in package.json) — hooks write the database,
  * this only reads it.
  */
 export default function MenuBar() {
   const { t, config } = locale();
-  const { data, isLoading } = useCachedPromise(activeSessions, [], { execute: config.menuBarEnabled });
+  const { data, isLoading } = useCachedPromise(activeSessions, []);
   const sessions = (data ?? []).filter((s) => s.subscribed);
   const groups = groupInbox(sessions);
   const count = waitingCount(sessions);
-
-  if (!config.menuBarEnabled) return null;
 
   return (
     <MenuBarExtra
@@ -58,11 +56,7 @@ export default function MenuBar() {
           icon={Icon.List}
           onAction={() => launchCommand({ name: "all-sessions", type: LaunchType.UserInitiated })}
         />
-        <MenuBarExtra.Item
-          title={t("nav.settings")}
-          icon={Icon.Gear}
-          onAction={() => launchCommand({ name: "settings", type: LaunchType.UserInitiated })}
-        />
+        <MenuBarExtra.Item title={t("action.preferences")} icon={Icon.Gear} onAction={openExtensionPreferences} />
       </MenuBarExtra.Section>
     </MenuBarExtra>
   );

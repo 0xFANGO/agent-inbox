@@ -3,12 +3,10 @@ import { dirname } from "node:path";
 import { CONFIG_PATH } from "./paths";
 import { Config } from "./types";
 
-export const DEFAULT_DEEPLINK_BASE = "raycast://extensions/0xFango/agent-inbox";
+export const DEFAULT_DEEPLINK_BASE = "raycast://extensions/silencerichard/agent-inbox";
 
 export const DEFAULT_CONFIG: Config = {
-  language: "zh",
   notifications: true,
-  menuBarEnabled: true,
   contentSearchEnabled: false,
   deeplinkBase: DEFAULT_DEEPLINK_BASE,
   resumeTerminal: "terminal",
@@ -32,4 +30,24 @@ export function writeConfig(patch: Partial<Config>, path = CONFIG_PATH): Config 
     writeFileSync(path, JSON.stringify(next, null, 2) + "\n");
   }
   return next;
+}
+
+export interface ExtensionPreferences {
+  notifications: boolean;
+  contentSearchEnabled: boolean;
+  resumeTerminal: string;
+}
+
+/** Raycast owns user preferences; other CLI/channel settings remain intact. */
+export function syncPreferences(preferences: ExtensionPreferences, deeplinkBase: string, path = CONFIG_PATH): Config {
+  return writeConfig(
+    {
+      notifications: preferences.notifications,
+      contentSearchEnabled: preferences.contentSearchEnabled,
+      resumeTerminal:
+        preferences.resumeTerminal === "iterm" || preferences.resumeTerminal === "ghostty" ? preferences.resumeTerminal : "terminal",
+      deeplinkBase,
+    },
+    path,
+  );
 }

@@ -2,8 +2,8 @@
 
 订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。
 
-[![Platform: Raycast](docs/images/raycast-platform.svg)](https://www.raycast.com/)
-[![OS: macOS](docs/images/macos-platform.svg)](https://www.apple.com/macos/)
+[![Platform: Raycast](media/raycast-platform.svg)](https://www.raycast.com/)
+[![OS: macOS](media/macos-platform.svg)](https://www.apple.com/macos/)
 
 [English](README.md) | **简体中文**
 
@@ -37,24 +37,25 @@ npm ci
 npm run dev
 ```
 
-1. 在 Raycast 搜索 **Agent Inbox**，打开 **设置 → 接入 Agent**，接入 Claude Code 或 Codex。Codex 首次需在客户端执行 `/hooks` 确认。
-2. 打开 **全部会话**，选中一个会话，按回车订阅。
-3. 打开 **订阅列表**，查看状态并按回车跳回。支持监测的会话在产生新待处理请求时会提醒；首次恢复历史状态不补发通知。
+1. 在 Raycast 搜索 **Agent Inbox**，打开 **All Sessions → Actions（⌘K）→ Connect an Agent**，接入 Claude Code 或 Codex。Codex 首次需在客户端执行 `/hooks` 确认。
+2. 打开 **All Sessions（全部会话）**，选中一个会话，按回车订阅。
+3. 打开 **Subscriptions（订阅列表）**，查看状态并按回车跳回。支持监测的会话在产生新待处理请求时会提醒；首次恢复历史状态不补发通知。
 
-接入会安装本地 Hook 和用户级后台采集器，修改前备份已有配置。权限、可点击通知、数据位置和卸载步骤见 [安装指南](docs/setup.md)。
+插件界面和通知统一使用英文。通过 **Actions → Open Extension Preferences** 打开原生偏好，设置恢复终端、通知和全文搜索。
+
+接入会安装本地 Hook 和用户级后台采集器，修改前备份已有配置。权限、可点击通知、数据位置和卸载步骤见 [安装指南](docs/setup.zh-CN.md)。
 
 ## 日常使用
 
-| Raycast 命令 | 用途                                       | 常用操作                         |
-| ------------ | ------------------------------------------ | -------------------------------- |
-| 全部会话     | 搜索与筛选会话，订阅当前窗口               | ↵ / ⌘S 订阅 · ⌘↵ 跳回 · ⌘I 详情  |
-| 订阅列表     | 处理关心的会话                             | ↵ 跳回 · ⌘D 已处理 · ⌘S 取消订阅 |
-| 设置         | 接入 Agent，管理语言、终端、全文搜索与通知 | ↵ 打开设置                       |
-| 刷新菜单栏   | 刷新订阅会话与待输入数量                   | 显示开关位于设置                 |
+| Raycast 命令     | 用途                         | 常用操作                            |
+| ---------------- | ---------------------------- | ----------------------------------- |
+| All Sessions     | 搜索与筛选会话，订阅当前窗口 | ↵ / ⌘S 订阅 · ⌘↵ 跳回 · ⌘I 详情     |
+| Subscriptions    | 处理关心的会话               | ↵ 跳回 · ⌘D 已处理 · ⌘S 取消订阅    |
+| Session Menu Bar | 展示订阅会话与待输入数量     | 在 Raycast 原生命令偏好中启用或停用 |
 
 **待输入**包括问题、授权，以及需要处理的失败、额度或中断。**本轮结束**表示 Agent 停止了这一轮；只有明确的完成事件才标记为**已完成**。标记已处理会暂时隐藏会话，状态变化或新请求会让它重新出现。
 
-完整快捷键、状态语义、标题同步和跳转兜底见 [使用指南](docs/usage.md)。
+完整快捷键、状态语义、标题同步和跳转兜底见 [使用指南](docs/usage.zh-CN.md)。
 
 ## 支持范围
 
@@ -73,15 +74,16 @@ Agent Inbox 管理你已经打开的会话，不托管或派发任务、不代�
 
 状态、订阅、配置、通知队列存储在 `~/.sessions/`。会话记录只读；没有会话上传服务。
 
-| 设置         | 类型 / 默认值                              | 行为                                                        |
-| ------------ | ------------------------------------------ | ----------------------------------------------------------- |
-| 语言         | 中文 / English；默认中文                   | 同时影响界面和通知，在 Raycast 扩展偏好中设置               |
-| 默认终端     | Terminal / iTerm2 / Ghostty；默认 Terminal | 找不到原 CLI 窗口时在此恢复会话                             |
-| 系统通知     | 开关；默认开启                             | 仅提醒已订阅、未处理且仍需用户介入的会话                    |
-| 菜单栏显示   | 开关；默认开启                             | 展示订阅会话与待输入数量                                    |
-| 会话全文搜索 | 开关；默认关闭                             | 确认后在本机索引用户与 Agent 消息；不包含工具输出与思考过程 |
+| 设置         | 类型 / 默认值                              | 行为                                                                      |
+| ------------ | ------------------------------------------ | ------------------------------------------------------------------------- |
+| 默认终端     | Terminal / iTerm2 / Ghostty；默认 Terminal | 找不到原 CLI 窗口时在此恢复会话                                           |
+| 系统通知     | 开关；默认开启                             | 仅提醒已订阅、未处理且仍需用户介入的会话                                  |
+| 菜单栏显示   | Raycast 原生命令启用开关                   | 展示订阅会话与待输入数量                                                  |
+| 会话全文搜索 | 开关；默认关闭                             | 在偏好设置中启用后，在本机索引用户与 Agent 消息；不包含工具输出与思考过程 |
 
-全文索引位于 `~/.sessions/cache/conversation-search.sqlite`。关闭搜索会停止索引与正文检索，已有索引不会自动删除。更多说明见 [搜索与隐私](docs/usage.md#搜索)。
+修改原生偏好后，重新打开扩展命令以同步后台采集器配置。
+
+全文索引位于 `~/.sessions/cache/conversation-search.sqlite`。关闭搜索会停止索引与正文检索，已有索引不会自动删除。更多说明见 [搜索与隐私](docs/usage.zh-CN.md#搜索)。
 
 ## 开发与贡献
 
@@ -91,13 +93,13 @@ npm run check  # 测试、类型、ESLint / Prettier、CLI 与 Raycast 构建
 npm run dev    # 在 Raycast 中加载开发版
 ```
 
-- [贡献说明](CONTRIBUTING.md)：开发、复现问题与提交 PR。
-- [CLI](docs/cli.md) · [架构](docs/architecture.md) · [扩展接口](docs/integrations.md)。
-- [测试记录](TESTING.md) · [更新记录](CHANGELOG.md) · [发布准备](docs/releasing.md)。
-- [产品与 Logo 设计说明](docs/brand-brief.md)。
+- [贡献说明](CONTRIBUTING.zh-CN.md)：开发、复现问题与提交 PR。
+- [CLI](docs/cli.zh-CN.md) · [架构](docs/architecture.zh-CN.md) · [扩展接口](docs/integrations.zh-CN.md)。
+- [测试记录](TESTING.zh-CN.md) · [更新记录](CHANGELOG.zh-CN.md)。
+- [产品与 Logo 设计说明](docs/brand-brief.zh-CN.md)。
 
-使用问题与建议请提交 [Issue](https://github.com/0xFANGO/agent-inbox/issues)；安全问题请先阅读 [安全说明](SECURITY.md)。
+使用问题与建议请提交 [Issue](https://github.com/0xFANGO/agent-inbox/issues)；安全问题请先阅读 [安全说明](SECURITY.zh-CN.md)。
 
 ## 许可证
 
-源码采用 [MIT](LICENSE)。第三方图标与随仓库附带的工具保留各自权利，素材来源核对事项见 [发布准备](docs/releasing.md#公开前尚需确认)。
+源码采用 [MIT](LICENSE)。第三方图标与随仓库附带的工具保留各自权利，平台图标来源见 [素材说明](media/README.md)。

@@ -1,15 +1,17 @@
-# 安全说明
+# Security
 
-本扩展读取本机 Agent 的会话记录与窗口信息，并维护本地数据库、缓存和通知。请勿在公开 Issue、PR 或截图中提交真实凭据、完整对话、数据库或未经脱敏的配置。
+**English** | [简体中文](SECURITY.zh-CN.md)
 
-## 报告漏洞
+This extension reads local agent conversations and window information and maintains a local database, cache, and notifications. Do not put credentials, complete conversations, databases, or unredacted configuration in public issues, pull requests, or screenshots.
 
-优先查看仓库的 [Security 页面](https://github.com/0xFANGO/agent-inbox/security)：若有 **Report a vulnerability** 入口，请通过该入口私密提交受影响版本、复现条件、影响和脱敏样本。
+## Reporting a vulnerability
 
-如果该入口不可用，目前没有在此文档中公布备用私密邮箱。请只在 Issue 中请求一个私密联系渠道，不要附漏洞细节、利用步骤或敏感数据，待维护者提供渠道后再提交。维护者需在公开发布前确认私密报告渠道，见 [发布准备](docs/releasing.md)。
+Check the repository's [Security page](https://github.com/0xFANGO/agent-inbox/security). If **Report a vulnerability** is available, use it to privately provide the affected version, reproduction conditions, impact, and a redacted sample.
 
-## 验证时隔离数据
+If that option is unavailable, no alternative private email address is currently listed here. Open an issue asking for a private contact channel, without vulnerability details, exploit steps, or sensitive data. Send the details once the maintainer provides that channel.
 
-调试状态机与 CLI 时使用临时 `AGENT_INBOX_HOME`，并设定 `notifications: false`。示例见 [CLI 文档](docs/cli.md)。不要用真实会话验证自动授权或发送消息；本项目不提供代用户批准 Agent 请求的能力。
+## Isolating test data
 
-当前没有已发布的 GitHub Release 或长期支持版本线。报告中请给出 commit，修复后的支持范围以发布说明为准。
+When debugging the state machine or CLI, use a temporary `AGENT_INBOX_HOME` with `notifications: false`. See the [CLI example](docs/cli.md). Do not use real sessions to test automatic approvals or message sending; Agent Inbox does not approve agent requests on your behalf.
+
+There is no published GitHub Release or long-term support branch yet. Include the commit in your report; release notes will describe the scope of fixes.
