@@ -18,12 +18,16 @@ Agent Inbox is not yet published in the Store. Once approved, open Raycast's **S
 
 ## Install from source
 
-For development or a PR review, check out the source branch and open the extension directory containing `package.json`. In the Raycast extensions repository this is `extensions/agent-inbox`.
+Clone the project and install its development dependencies:
 
 ```sh
+git clone https://github.com/0xFANGO/agent-inbox.git
+cd agent-inbox
 npm ci
 npm run dev
 ```
+
+To review a change in the Raycast extensions repository, run the npm commands from `extensions/agent-inbox` on the PR branch instead.
 
 `npm run dev` builds the helper CLI and imports the extension into Raycast. For release validation, stop the development process, run `npm run build`, and exercise the commands in Raycast. Search for **Agent Inbox** to find all four commands, including **Subscribe to Current Conversation**. A command can have its own hotkey in **Raycast Preferences → Extensions**.
 
