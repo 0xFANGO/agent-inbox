@@ -3,7 +3,7 @@
   "name": "agent-inbox",
   "title": "Agent Inbox",
   "description": "Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.",
-  "icon": "extension-icon.png",
+  "icon": "agent-inbox-icon.png",
   "author": "silencerichard",
   "license": "MIT",
   "repository": {

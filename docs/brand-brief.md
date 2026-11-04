@@ -36,24 +36,24 @@ Typical workflow: subscribe to two project sessions → do other work → an age
 - State and optional search indexes stay on the Mac. There is no cross-device cloud sync.
 - “Turn ended” does not mean the entire task is complete. Brand copy should preserve that distinction.
 
-## Visual direction
+## Selected logo
 
-The core ideas are **gather conversations, signal attention, and return to context**. Aim for a quiet, clear desktop utility.
+The selected artwork combines an envelope-shaped speech bubble, the OpenAI mark, and a small crab. Original path geometry is preserved. The crab uses warm terracotta (`#D97757`) in both themes, with dark eyes for contrast.
 
-Start with an inbox tray and one pending-status dot. The tray represents collected sessions; the dot indicates something needs the user. The opening or negative space can suggest a conversation bubble while retaining one main silhouette.
+- **Light theme:** pale apricot, from `#FFF1D6` to `#FFD6BC`.
+- **Dark theme:** charcoal, from `#34302C` to `#1E1C1B`.
+- **Menu bar:** the envelope outline with transparent cutouts. Raycast applies a theme-aware tint and shows orange when attention is needed.
 
-Another direction is two conversation lines converging into one entry point. A return arrow can be a secondary shape. Avoid combining a tray, bell, robot, code brackets, and lightning bolt in one icon.
+README and Raycast command icons switch between light and dark automatically. Session rows retain their individual agent icons to identify the source.
 
-Give the product its own mark. Claude and OpenAI icons identify sources; they should not be combined into the main logo. Use **Agent Inbox** for a wordmark and a standalone symbol in the menu bar and command list.
+## Asset files
 
-## Deliverables
+| File                                                                                          | Use                                                                  |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [Original SVG](../media/logo-original.svg)                                                    | Supplied artwork, preserved without edits                            |
+| [Colored symbol](../media/logo.svg)                                                           | Transparent logo with the terracotta crab                            |
+| [Light source](../media/app-icon.svg) · [Dark source](../media/app-icon@dark.svg)             | Editable vector sources for the rounded app icons                    |
+| [Light PNG](../assets/agent-inbox-icon.png) · [Dark PNG](../assets/agent-inbox-icon@dark.png) | 512 × 512 Raycast icons; the `@dark` suffix selects the dark theme   |
+| [Menu-bar source](../media/menu-bar-icon.svg)                                                 | Simplified symbol, exported to `assets/menu-bar-icon.png` at 44 × 44 |
 
-- Editable vector artwork and a standalone icon.
-- Light and dark background variants, plus a monochrome menu-bar version.
-- Legible silhouettes and negative space at 16, 20, and 32 pixels; no status dot dependent on a thin outline.
-- A 512 × 512 PNG Raycast icon. Replace `assets/extension-icon.png` and run `npm run lint`.
-- A horizontal wordmark for the README and GitHub page.
-
-## Designer prompt
-
-> Design a logo for Agent Inbox, a macOS developer tool. It gathers coding conversations from Claude Code and Codex into a subscription inbox, signals when an agent needs an answer or permission, and helps users return to the original conversation. Focus on collected conversations, pending attention, and returning to context. Explore a simple inbox tray with one status dot and optional conversation-bubble negative space. Keep the silhouette clear and the spacing generous so it works at small sizes and in monochrome. Deliver a standalone icon, an Agent Inbox wordmark combination, and light/dark variants.
+README PNG copies live under `media/`. Keep them identical to the runtime icons when re-exporting. See [asset provenance](../media/README.md).

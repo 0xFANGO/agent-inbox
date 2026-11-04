@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/app-icon@dark.png">
+  <img src="media/app-icon.png" width="128" height="128" alt="Agent Inbox logo">
+</picture>
+
 # Agent Inbox
 
 Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.

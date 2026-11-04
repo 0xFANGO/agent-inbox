@@ -1,4 +1,16 @@
-# README platform icons
+# Brand assets
+
+## Product logo
+
+The project owner supplied `logo-original.svg`; its metadata credits Arrow by QuiverAI. The original file is preserved verbatim. `logo.svg` retains its geometry and colors the crab warm terracotta (`#D97757`) with dark eyes.
+
+`app-icon.svg` and `app-icon@dark.svg` add pale apricot and charcoal backgrounds. The 512 × 512 PNG copies here appear in both README languages; identical exports under `assets/` are used by Raycast. Raycast selects `agent-inbox-icon@dark.png` automatically in its dark theme. The third-party marks remain identifiable as source brands.
+
+`menu-bar-icon.svg` extracts the envelope outline with transparent cutouts, exported at 44 × 44 to `assets/menu-bar-icon.png`. Raycast applies the theme-aware tint. Backgrounds and small agent marks are omitted from this tiny variant.
+
+Re-export the SVG sources with a renderer supporting gradients and transparency. These exports use resvg. Keep runtime and README PNG pairs identical.
+
+## Platform icons
 
 These local SVG labels identify the supported host (Raycast) and operating system (macOS). They are documentation assets and are not included in the Raycast extension bundle.
 

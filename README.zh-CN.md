@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/app-icon@dark.png">
+  <img src="media/app-icon.png" width="128" height="128" alt="Agent Inbox logo">
+</picture>
+
 # Agent Inbox
 
 订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。

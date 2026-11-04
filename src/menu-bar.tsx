@@ -21,7 +21,7 @@ export default function MenuBar() {
   return (
     <MenuBarExtra
       isLoading={isLoading}
-      icon={{ source: Icon.Bell, tintColor: count > 0 ? Color.Orange : undefined }}
+      icon={{ source: "menu-bar-icon.png", tintColor: count > 0 ? Color.Orange : Color.PrimaryText }}
       title={count > 0 ? String(count) : undefined}
       tooltip={t("nav.menuBar")}
     >

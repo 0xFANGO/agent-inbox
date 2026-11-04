@@ -4,6 +4,12 @@
 
 These are development records. As of 2026-11-04, no GitHub Release has been published. Dates below describe development, not Store availability.
 
+## [New Product Logo] - 2026-11-04
+
+- Replace extension and README icons with the supplied envelope-and-agents artwork.
+- Use a terracotta crab in both themes, pale apricot and charcoal backgrounds, and automatic theme switching.
+- Use a simplified envelope outline in the menu bar and retain editable SVG sources.
+
 ## [English Interface and Native Preferences] - 2026-11-04
 
 - Use English for commands, interface labels, and notifications; remove the custom language selector and Settings command.
