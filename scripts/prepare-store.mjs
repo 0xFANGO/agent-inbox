@@ -62,6 +62,19 @@ manifest.bugs = { url: `${upstream}/issues` };
 delete manifest.scripts["prepare:store"];
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 
+const securityReporting = {
+  "SECURITY.md": {
+    section: /## Reporting a vulnerability\n[\s\S]*?(?=\n## )/,
+    replacement:
+      "## Reporting a vulnerability\n\nFollow the [Raycast extensions security policy](https://github.com/raycast/extensions/blob/main/SECURITY.md). Report vulnerabilities privately to **security@raycast.com** with the subject **[Extension Security] Agent Inbox**. Include the affected version, reproduction conditions, impact, and a redacted sample. Do not disclose vulnerability details in public issues or pull requests.\n",
+  },
+  "SECURITY.zh-CN.md": {
+    section: /## 报告漏洞\n[\s\S]*?(?=\n## )/,
+    replacement:
+      "## 报告漏洞\n\n请遵循 [Raycast extensions 安全政策](https://github.com/raycast/extensions/blob/main/SECURITY.md)，私密发送至 **security@raycast.com**，邮件主题为 **[Extension Security] Agent Inbox**。请提供受影响版本、复现条件、影响和脱敏样本，不要在公开 Issue 或 PR 中披露漏洞细节。\n",
+  },
+};
+
 let count = 0;
 function finalize(directory) {
   for (const item of readdirSync(directory, { withFileTypes: true })) {
@@ -72,9 +85,14 @@ function finalize(directory) {
     }
     count++;
     if (!item.name.endsWith(".md")) continue;
-    const text = readFileSync(path, "utf8")
+    let text = readFileSync(path, "utf8")
       .replaceAll("https://github.com/0xFANGO/agent-inbox/issues", `${upstream}/issues`)
       .replaceAll("https://github.com/0xFANGO/agent-inbox/security", `${upstream}/security`);
+    const reporting = securityReporting[item.name];
+    if (reporting) {
+      if (!reporting.section.test(text)) throw new Error(`Security reporting section not found in ${path}`);
+      text = text.replace(reporting.section, reporting.replacement);
+    }
     if (text.includes("https://github.com/0xFANGO/agent-inbox")) throw new Error(`Private repository link remains in ${path}`);
     writeFileSync(path, text);
   }
