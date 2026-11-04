@@ -51,3 +51,4 @@ The prepared source passed a fresh `npm ci`, `npm run check`, and `npm run lint`
 - Host API stubs verify that Raycast catalog reads and title refreshes use `executeSQL`, including the legacy-index fallback when it rejects. They do not constitute a live Raycast database-permission test.
 - A copied CLI runs help and records/reads an event outside the repository without Raycast or `node_modules`. The packaged CLI matches the generated asset byte for byte, and all four commands are present in the `.rayext` archive.
 - No new native UI, terminal-focus, notification-delivery or notification-click checks were performed for this follow-up.
+- A fresh-source CI run exposed reliance on Raycast's untracked generated `Preferences` declaration. The extension now uses the existing shared `ExtensionPreferences` type. A fresh source export without `raycast-env.d.ts` passed `npm ci` and `npm run check`; its generated CLI is unchanged.

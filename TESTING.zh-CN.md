@@ -51,3 +51,4 @@
 - 通过宿主 API 替身验证 Raycast 的 Codex 目录读取和标题刷新使用 `executeSQL`，并覆盖查询失败时回退旧索引；这不代表已在原生 Raycast 内验证数据库权限。
 - 将 CLI 复制到仓库外，在没有 Raycast 和 `node_modules` 的目录中执行帮助与事件写入/读取。安装包内 CLI 与生成文件逐字节一致，四个命令均包含在 `.rayext` 中。
 - 本轮未新增原生界面、真实终端聚焦、通知送达或通知点击实测。
+- 干净环境 CI 发现扩展依赖未提交的 Raycast 生成类型 `Preferences`，现已改用已有的共享类型 `ExtensionPreferences`。不含 `raycast-env.d.ts` 的全新源码副本通过 `npm ci` 和 `npm run check`，CLI 产物保持一致。
