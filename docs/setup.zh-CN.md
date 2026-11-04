@@ -18,12 +18,16 @@ Agent Inbox 尚未在 Store 上架。审核通过后，在 Raycast 的 **Store**
 
 ## 源码安装
 
-开发或评审 PR 时，先检出对应源码分支，进入包含 `package.json` 的扩展目录。在 Raycast extensions 仓库中，该目录为 `extensions/agent-inbox`。
+克隆项目并安装开发依赖：
 
 ```sh
+git clone https://github.com/0xFANGO/agent-inbox.git
+cd agent-inbox
 npm ci
 npm run dev
 ```
+
+若评审 Raycast extensions 仓库中的改动，请检出对应 PR 分支，在 `extensions/agent-inbox` 目录执行上述 npm 命令。
 
 `npm run dev` 构建辅助 CLI 并将扩展导入 Raycast。发布验收时，先停止开发进程，再运行 `npm run build`，然后在 Raycast 中实际操作。搜索 **Agent Inbox** 可找到四个命令，包括 **Subscribe to Current Conversation**。每个命令都可在 **Raycast Preferences → Extensions** 中单独配置全局快捷键。
 

@@ -3,5 +3,9 @@ dist/
 .test-build/
 raycast-env.d.ts
 .DS_Store
-# Impeccable engine binaries are downloaded per platform, never tracked
-**/skills/impeccable/scripts/bin/
+# Local development tools and investigation notes
+.agents/
+.claude/
+docs/claude-session-investigation.md
+docs/codex-session-investigation.md
+docs/notification-architecture-audit.md

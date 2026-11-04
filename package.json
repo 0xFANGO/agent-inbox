@@ -151,7 +151,6 @@
     "check": "npm test && npm run typecheck && npm run lint:code && npm run build",
     "lint": "ray lint",
     "fix-lint": "ray lint --fix",
-    "prepare:store": "npm run build:cli && node scripts/prepare-store.mjs",
     "publish": "npm run build:cli && ray publish"
   }
 }
