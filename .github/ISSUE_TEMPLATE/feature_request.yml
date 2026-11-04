@@ -1,17 +1,17 @@
-name: 功能建议
-description: 描述需要解决的会话管理问题
+name: Feature request
+description: Describe a session-management problem you need to solve
 body:
   - type: textarea
     id: problem
     attributes:
-      label: 使用场景与问题
-      description: 目前在哪一步遇到困难？涉及什么 Agent 或客户端？
+      label: Use case and problem
+      description: Where does the current workflow fall short? Which agent or client is involved?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: 希望的行为
-      description: 说明期待的结果，也可补充现有的替代方法。
+      label: Desired behavior
+      description: Describe the expected outcome and any workarounds you use today.
     validations:
       required: true

@@ -1,5 +1,5 @@
 import { asString, run } from "../exec";
-import { translator } from "../i18n";
+import { translator } from "../messages";
 import { terminalNotifierPath } from "../install";
 import { Config } from "../types";
 import { NotificationChannel, NotificationMessage } from "./types";
@@ -14,7 +14,7 @@ export function macosChannel(link = raycastNotificationLink): NotificationChanne
   return {
     id: "macos",
     async send(message, { config }) {
-      const t = translator(config.language);
+      const t = translator();
       const title = t(message.attention && message.attention !== "input" ? `attention.${message.attention}` : "notify.waiting");
       const notifier = terminalNotifierPath();
       const result = notifier

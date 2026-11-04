@@ -1,10 +1,12 @@
-# 参与贡献
+# Contributing
 
-Agent Inbox 关注已有 Agent 会话的发现、订阅、状态、提醒和跳回。新来源或新通知渠道请先用 Issue 说明使用场景与数据来源，再实现对应接口。项目当前的兼容边界见 [README](README.md#支持范围)。
+**English** | [简体中文](CONTRIBUTING.zh-CN.md)
 
-## 开发环境
+Agent Inbox focuses on discovering, subscribing to, monitoring, and returning to existing agent sessions. For a new source or notification channel, open an issue describing the use case and available data before implementing the interface. See the [compatibility limits](README.md#compatibility).
 
-需要 macOS、Raycast、Node.js 22.22.2 或更高版本，以及系统 `sqlite3`。使用 nvm 时先运行 `nvm install`；仓库使用 Node 24。
+## Development environment
+
+Use macOS, Raycast, Node.js 22.22.2 or later, and the system `sqlite3`. With nvm, run `nvm install` first; this repository selects Node 24.
 
 ```sh
 npm ci
@@ -12,32 +14,33 @@ npm run check
 npm run dev
 ```
 
-`npm run check` 运行测试、TypeScript、ESLint / Prettier 与 CLI / Raycast 构建。`npm run dev` 将本地扩展加载到 Raycast，适合界面验收。接入 Agent 是单独操作，会修改 Hook 配置并安装后台采集器，见 [安装说明](docs/setup.md)。
+`npm run check` runs tests, TypeScript, ESLint, Prettier, and CLI/Raycast builds. `npm run dev` loads the extension into Raycast for interface checks. Connecting an agent is a separate action that edits hook configuration and installs a background collector; see [setup](docs/setup.md).
 
-测试使用临时数据库与配置，不安装真实 Hook，不向 Agent 发送消息。真实窗口、通知点击、权限和终端跳转仍需手动验收；请把自动化结果与实机结果分开记录。
+Tests use temporary databases and configuration. They do not install real hooks or send messages to agents. Real windows, notification clicks, permissions, and terminal navigation still need manual checks. Record automated and live results separately.
 
-## 修改与验证
+## Changes and verification
 
-- 使用现有 TypeScript、ESLint 与 Prettier 配置，避免无关格式变更。
-- 修改状态识别或跳转逻辑时，提供可复现的输入样本和回归测试。样本应使用虚构的会话 ID、路径与对话内容。
-- 不按最近活动时间猜测目标会话，不用超时或普通回合结束推断任务完成。
-- 修改用户行为时同步更新 [使用指南](docs/usage.md) 与 [CHANGELOG](CHANGELOG.md)。
-- `assets/agent-inbox.mjs` 为受版本控制的生成文件；修改核心或 CLI 后运行 `npm run build:cli`，不要手改 bundle。
-- 新来源、状态契约和通知渠道的扩展方式见 [接口说明](docs/integrations.md)。
+- Follow the existing TypeScript, ESLint, and Prettier configuration. Avoid unrelated formatting changes.
+- For state or navigation changes, include a reproducible input and a regression test. Use fictional session IDs, paths, and conversation content.
+- Never guess the target session from recent activity or infer task completion from a timeout or an ordinary turn ending.
+- Update the [usage guide](docs/usage.md) and [changelog](CHANGELOG.md) when behavior changes.
+- English is the default documentation language. Keep corresponding `.zh-CN.md` editions and their language links in sync when changing features, setup, or compatibility. The extension interface uses English.
+- `assets/agent-inbox.mjs` is a tracked generated file. Run `npm run build:cli` after changing core or CLI code; do not edit the bundle by hand.
+- See [integration interfaces](docs/integrations.md) for sources, state contracts, and notification channels.
 
-## 报告问题
+## Reporting a problem
 
-使用 [Issues](https://github.com/0xFANGO/agent-inbox/issues) 提交使用问题、Bug 或功能建议。请附上：
+Use [Issues](https://github.com/0xFANGO/agent-inbox/issues) for questions, bugs, and feature requests. Include:
 
-1. 当前 commit 或发布版本、macOS / Raycast / Agent 客户端版本。
-2. 会话来源：Claude / Codex、CLI / 桌面 / 纯云端、终端或 tmux 环境。
-3. 最短复现步骤、预期与实际行为。
-4. 必要的脱敏截图或日志片段。不要提交整份 transcript、数据库、配置或真实凭据。
+1. The commit or release, macOS, Raycast, and agent client versions.
+2. The source: Claude or Codex; CLI, desktop, or cloud-only; terminal or tmux environment.
+3. Minimal reproduction steps, expected behavior, and actual behavior.
+4. Only the redacted screenshots or log excerpts needed to reproduce the issue. Do not attach entire transcripts, databases, configuration, or credentials.
 
-漏洞报告见 [安全说明](SECURITY.md)。
+For vulnerabilities, follow the [security policy](SECURITY.md).
 
-## Pull Request
+## Pull requests
 
-描述具体问题、修改后的行为、执行的验证与尚未验证的场景。一次 PR 尽量解决一个问题；注明关联 Issue。若条件允许，启用 “Allow edits from maintainers”，便于补充小修改。
+Describe the concrete problem, resulting behavior, checks performed, and untested scenarios. Keep the scope focused and link the related issue. Enable “Allow edits from maintainers” when possible.
 
-发布前还需运行 `npm run lint` 检查 Raycast 清单、图标和 Store 作者账号；该命令需要联网，不能用它替代本地代码检查。打包与公开前的检查见 [发布准备](docs/releasing.md)。
+Run `npm run lint` before submitting to validate the Raycast manifest, icon, and author account. It needs network access and complements the local code checks.

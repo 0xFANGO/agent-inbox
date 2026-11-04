@@ -141,15 +141,10 @@ export interface HistoryEntry {
   locator?: Locator;
 }
 
-export type Language = "zh" | "en";
-
 export interface Config {
-  language: Language;
   notifications: boolean;
   /** Channel IDs; credentials and transport details belong to the channel implementation. */
   notificationChannels?: string[];
-  /** Whether the subscription list is shown in macOS' menu bar. */
-  menuBarEnabled: boolean;
   /** Explicit opt-in to reading and indexing full local conversation bodies. */
   contentSearchEnabled: boolean;
   /** raycast://extensions/<owner>/<extension> — written by the extension so the CLI can build deeplinks. */

@@ -1,55 +1,70 @@
 # Agent Inbox Changelog
 
-以下为开发记录；截至 2026-11-04 尚未发布 GitHub Release。标题日期表示开发日期，不代表 Store 上线日期。
+**English** | [简体中文](CHANGELOG.zh-CN.md)
+
+These are development records. As of 2026-11-04, no GitHub Release has been published. Dates below describe development, not Store availability.
+
+## [English Interface and Native Preferences] - 2026-11-04
+
+- Use English for commands, interface labels, and notifications; remove the custom language selector and Settings command.
+- Move notifications, optional full-text search, and terminal recovery to Raycast preferences. Let Raycast control the menu-bar command, and keep agent connection actions in session lists.
+- Correct the Raycast author to `silencerichard` and use it in notification links.
+- Provide English defaults and Chinese editions for homepage-linked documentation and English issue/PR templates. Remove the separate publishing guide and move README icons to `media/`.
+
+## [Bilingual Project Overview] - 2026-11-04
+
+- Make English the default README and add a Chinese edition with reciprocal language links.
+- Identify Raycast and macOS using branded platform icons.
+- Align the English product description and documentation links; describe the interface and command names available at that checkpoint.
 
 ## [Open-source Preparation] - 2026-11-04
 
-- 补齐源码安装、首次接入、权限、数据目录与卸载说明，分开快速上手与详细使用文档。
-- 增加 CLI 帮助、隔离运行示例与参数默认值说明。
-- 沿用已声明的 MIT 补齐许可证，加入贡献指南、安全报告说明和问题模板。
-- 加入 macOS CI 与扩展打包命令；安装包附带许可证并移除含本机路径的 source map，明确 Node 最低版本及尚未完成的发布检查。
-- 整理产品功能和 Logo 设计说明，标明纯云端状态监测等兼容边界。
+- Document source installation, first connection, permissions, data locations, and removal; separate quick start from detailed usage.
+- Add CLI help, an isolated example, and argument defaults.
+- Add the already-declared MIT license, contribution and security documentation, and issue templates.
+- Add macOS CI and extension bundling; include the license, strip source maps containing build-machine paths, and document the minimum Node version.
+- Record the product and logo brief with limits such as cloud-only monitoring.
 
 ## [Session Title Synchronization] - 2026-11-04
 
-- 标题作为独立元数据持久化；列表、菜单栏与通知采用同一份按 ID 关联的当前名称，旧读取结果不能覆盖新名称。
-- 补齐 Claude CLI 的 custom-title.json 和旧 transcript 改名记录；继续读取 Claude 桌面 metadata 与 Codex 当前会话目录。
-- Claude Cloud 已打开窗口的标题可被动同步；窗口不可访问、关闭或来源暂缺时保留旧名称，不推断远端运行状态。
-- 改名保留订阅、已处理、运行状态和活动时间，不产生额外通知；已排队通知使用最新标题。
+- Persist titles separately by session ID and use current names in lists, menu bar, and notifications. Older observations cannot overwrite newer ones.
+- Read Claude CLI `custom-title.json` and older transcript rename events alongside Claude desktop metadata and Codex catalogs.
+- Passively sync open Claude Cloud window titles. Preserve confirmed names when sources are unavailable, without inferring remote state.
+- Preserve subscriptions, handled markers, state, and activity during renames; send no extra alerts and use current titles for queued notifications.
 
 ## [Subscription Sections and Settings] - 2026-11-04
 
-- 订阅列表与菜单栏统一为待输入、已订阅、已完成三个分区，移除运行中和其他会话分区。
-- Claude 历史会话可通过明确的回合结束标记恢复初始状态；保留实时 Hook 状态，归档操作支持恢复出的已完成会话。
-- 菜单栏宿主命令改名「刷新菜单栏」；设置改名为「会话全文搜索」「默认终端」，移除「点通知跳回」配置行。
+- Use Waiting for You, Subscribed, and Completed sections in the subscription list and menu bar.
+- Restore initial Claude history state from explicit turn markers while preserving live hooks; include recovered completed sessions in archiving. Later state changes below replace inferred completion with turn-ended semantics.
+- Simplify settings labels and remove the separate notification-navigation row.
 
 ## [Search and Desktop Compatibility] - 2026-11-04
 
-- 修复搜索没有实际筛选的问题；默认搜标题、项目与会话 ID，经用户确认后才建立本地全文索引，可随时关闭。
-- 全文搜索支持用户与助手对话、中文短词、增量刷新和命中片段；修复中途取消索引产生未捕获 AbortError 的崩溃。
-- 通知入口改名菜单栏订阅列表，设置加入显示开关；Agent 接入直接显示成功／失败，移除新增 Adapter 与安装预览。
-- Codex 当前窗口匹配兼容独立原生标题、重命名目录、不同会话路由和焦点恢复；按能力读取元数据，不固定 Agent 版本。
-- 订阅时保存已确认的桌面来源，保留实时状态；Codex 跳转继续使用外部会话链接，并正确报告兜底失败。
+- Fix actual search filtering. Default to titles, projects, and IDs; make local full-text indexing opt-in and reversible.
+- Support user/assistant dialogue, short Chinese terms, incremental refresh, and snippets; fix uncaught `AbortError` when indexing is canceled.
+- Add menu-bar visibility control and direct connection results; remove adapter creation and installation previews from the UI.
+- Handle Codex native window titles, renamed catalogs, session routes, and focus restoration by capability rather than pinned client versions.
+- Persist confirmed desktop origins without losing live state; use external Codex session links and report failed recovery.
 
 ## [Navigation and Subscription Updates] - 2026-11-04
 
-- 扩展统一命名 Agent Inbox，入口整理为全部会话、订阅列表、通知和设置。
-- 订阅当前窗口对话移至全部会话首项，加入已订阅、待输入和已完成筛选。
-- 订阅列表与通知菜单仅展示订阅会话，历史记录订阅后可见。
-- 设置集中管理 Agent 接入、语言、恢复终端和通知；会话行提供订阅与跳转主次操作。
+- Rename the extension Agent Inbox and organize its initial session, subscription, notification, and settings entry points.
+- Put current-window subscription first in All Sessions and add subscription/status filters.
+- Show only subscribed sessions in the inbox and notification menu; allow history subscriptions.
+- Centralize connection and preferences, and provide subscribe/jump actions on each row.
 
 ## [Initial Version] - {PR_MERGE_DATE}
 
-此日期占位符保留给首次 Raycast Store PR 合并流程；不代表已经发布。
+The date placeholder is reserved for the first Raycast Store PR merge. It does not mean the extension is already published.
 
-- 收件箱 / 全部会话 / 订阅当前会话 / 菜单栏 / 接入 Agent 五个命令
-- Claude Code（CLI · 桌面端）与 Codex（CLI · 桌面端）的 hook 接入与跳回
-- 界面语言设置：中文（默认）/ English
+- Initial inbox, history, current-session subscription, menu-bar, and connection commands.
+- Claude Code and Codex CLI/desktop hooks and navigation.
+- Initial Chinese/English interface selection, later replaced by the English interface above.
 
-## 状态识别与扩展接口 — 2026-11-04
+## [State Recognition and Integration Interfaces] - 2026-11-04
 
-- 区分本轮结束与任务完成，保留未解决的问题/授权；旧推断完成状态迁移为本轮结束。
-- 补齐 Claude/Codex 结构化 Hook 与订阅 transcript 采集，正确处理 Codex 桌面异步提问确认和真实回答。
-- 增加事件身份、乱序保护、SQLite 并发更新重试及原子通知入队。
-- 拆开来源、状态核心和通知渠道；macOS 渠道配持久化队列、取消与重试，为飞书和 DSH 留出接口。
-- 增加用户级后台采集服务、列表自动刷新与状态标签。
+- Distinguish turn-ended from completed, preserve unresolved questions/approvals, and migrate earlier inferred completion to turn-ended.
+- Add structured Claude/Codex hooks and subscribed transcript collection, including asynchronous Codex desktop acknowledgments and actual answers.
+- Add event identities, ordering guards, SQLite concurrency retries, and atomic notification queue entries.
+- Separate sources, state, and notification channels; provide macOS delivery with persistence, cancellation, and retry, plus interfaces for future Feishu/DeepSeek Harness support.
+- Add the user background collector, automatic list refresh, and status labels.

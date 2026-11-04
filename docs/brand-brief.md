@@ -1,57 +1,59 @@
-# Agent Inbox：产品与 Logo 设计说明
+# Agent Inbox: Product and Logo Brief
 
-## 一句话
+**English** | [简体中文](brand-brief.zh-CN.md)
 
-订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。
+## One sentence
 
-Agent Inbox 是面向同时使用多个 AI 编程会话的开发者的 macOS Raycast 扩展。它把分散在终端、桌面客户端里的会话集中到一个订阅列表，帮助用户知道哪个会话在运行、哪个正在等自己，以及应该回到哪里继续。
+Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.
 
-## 用户遇到的问题
+Agent Inbox is a macOS Raycast extension for developers working across multiple AI coding sessions. It brings conversations from terminals and desktop clients into a subscription list, showing which sessions are running, which need attention, and where to continue.
 
-开发者可能同时让几个 Agent 修复问题、编写代码或调查方案。它们分别在不同项目和窗口中运行：一个等授权，一个提出问题，另一个已经结束这一轮。用户需要反复切窗口确认进度，也容易忘记哪个会话正在等自己。
+## The problem
 
-Agent Inbox 让用户只订阅关心的会话，在需要介入时收到提醒，再跳回原来的工作上下文。
+A developer may have several agents fixing bugs, writing code, or investigating approaches in different projects and windows. One needs permission, another asks a question, and a third has finished its current turn. Checking each window interrupts work, and unanswered requests are easy to miss.
 
-## 当前功能
+Agent Inbox lets users follow selected sessions, receive a reminder when their input is needed, and return to the original context.
 
-| 能力         | 用户得到什么                                                                 |
-| ------------ | ---------------------------------------------------------------------------- |
-| 全部会话     | 按标题、项目与 ID 查找 Claude Code / Codex 会话，找到历史工作                |
-| 订阅与处理   | 把关心的会话放入订阅列表，处理后暂时移出；新状态或新请求可让它重新出现       |
-| 状态与提醒   | 区分运行、待输入、本轮结束、明确完成和未知状态；只提醒已订阅、需要处理的会话 |
-| 跳回上下文   | 定位原桌面对话或终端标签 / tmux pane；定位失败时提供恢复或手动定位兜底       |
-| 菜单栏       | 查看订阅会话和待输入数量                                                     |
-| 可选全文搜索 | 经用户确认后，在本机索引用户与 Agent 的消息并展示命中片段                    |
-| 标题同步     | 列表、菜单栏与通知跟随来源的当前会话名称                                     |
+## Current features
 
-典型过程：订阅两个项目的会话 → 去做其他工作 → 某个 Agent 请求确认 → 收到提醒 → 跳回那个对话 → 回答后继续工作。
+| Capability                | What it gives the user                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| All Sessions              | Find Claude Code and Codex conversations by title, project, or ID, including past work                                         |
+| Subscriptions             | Follow selected sessions; temporarily dismiss handled work until a new state or request arrives                                |
+| Status and notifications  | Distinguish running, waiting, turn ended, explicitly completed, and unknown; notify only for subscribed work needing attention |
+| Return to context         | Focus the original desktop conversation, terminal tab, or tmux pane, with recovery options when exact targeting fails          |
+| Menu bar                  | See subscribed sessions and a waiting count                                                                                    |
+| Optional full-text search | Enable a local index of user and agent messages and see matching excerpts                                                      |
+| Title synchronization     | Keep lists, menu bar, and notifications aligned with current source titles                                                     |
 
-## 产品边界
+Typical workflow: subscribe to two project sessions → do other work → an agent requests confirmation → receive a notification → jump to that conversation → respond and continue.
 
-- 这是已有 Agent 会话的管理入口，不负责启动任务编排、派发工作、生成代码或代替用户授权。
-- 当前面向 macOS 和 Raycast；内置来源为 Claude Code 与 Codex，内置通知为 macOS。
-- 纯云端 Claude Code 会话可按明确窗口 ID 订阅与跳回，也可同步已打开窗口的标题；没有本地记录或 Hook 时不能监测状态或发送待输入提醒。
-- 本地状态与可选搜索索引留在本机。它不提供跨设备云同步。
-- “本轮结束”不等于“整个任务完成”。品牌文案不应承诺替用户判断所有任务是否完成。
+## Product boundaries
 
-## 视觉概念建议
+- It manages existing conversations. It does not orchestrate agents, assign work, generate code, or approve requests.
+- The current platform is Raycast on macOS. Built-in sources are Claude Code and Codex; the built-in notification channel is macOS.
+- Cloud-only Claude Code sessions can be subscribed to and reopened using explicit window IDs, and open-window titles can sync. Without local records or hooks, monitoring and input reminders are unavailable.
+- State and optional search indexes stay on the Mac. There is no cross-device cloud sync.
+- “Turn ended” does not mean the entire task is complete. Brand copy should preserve that distinction.
 
-核心含义是 **汇集会话、提示待办、回到上下文**。整体气质适合安静、清楚、可靠的桌面工具。
+## Visual direction
 
-优先探索「收件托盘 + 一枚待处理圆点」：托盘表示会话汇集，圆点表示有一件事需要用户介入。托盘的开口或负形可以带一点对话气泡的意味，保留一个主轮廓即可。
+The core ideas are **gather conversations, signal attention, and return to context**. Aim for a quiet, clear desktop utility.
 
-另一个方向是「两条会话线汇入一个入口」，表达多来源集中管理。若使用返回箭头，应让它作为辅助形状，避免同时堆叠托盘、铃铛、机器人、代码括号和闪电。
+Start with an inbox tray and one pending-status dot. The tray represents collected sessions; the dot indicates something needs the user. The opening or negative space can suggest a conversation bubble while retaining one main silhouette.
 
-产品需要有自己的标识。Claude / OpenAI 的图标可以用于标明会话来源，产品主 Logo 不应直接拼接它们。完整名称 **Agent Inbox** 可用于字标，菜单栏与命令列表使用独立图形。
+Another direction is two conversation lines converging into one entry point. A return arrow can be a secondary shape. Avoid combining a tray, bell, robot, code brackets, and lightning bolt in one icon.
 
-## 应交付的图形
+Give the product its own mark. Claude and OpenAI icons identify sources; they should not be combined into the main logo. Use **Agent Inbox** for a wordmark and a standalone symbol in the menu bar and command list.
 
-- 可编辑的矢量源文件与独立图标。
-- 浅色、深色背景适配，以及可用于菜单栏的单色版本。
-- 在 16、20、32 像素检查轮廓、负形和留白，状态点不能依赖很细的边线。
-- Raycast 扩展图标 PNG；替换 `assets/extension-icon.png` 后运行 `npm run lint` 核对当前规范。
-- README / GitHub 展示用横向字标，可单独包含产品名。
+## Deliverables
 
-## 可直接给设计师的描述
+- Editable vector artwork and a standalone icon.
+- Light and dark background variants, plus a monochrome menu-bar version.
+- Legible silhouettes and negative space at 16, 20, and 32 pixels; no status dot dependent on a thin outline.
+- A 512 × 512 PNG Raycast icon. Replace `assets/extension-icon.png` and run `npm run lint`.
+- A horizontal wordmark for the README and GitHub page.
 
-> 为 Agent Inbox 设计一个 macOS 开发者工具的 Logo。产品把 Claude Code 和 Codex 中分散的编程会话汇集为订阅收件箱，在 Agent 等待用户回答或授权时提醒，并帮助用户跳回原对话。视觉重点是“多会话汇集、待办提醒、回到上下文”。优先探索简洁的收件托盘与单个状态点，适当利用对话气泡的负形；保持轮廓清晰、留白充足，在小尺寸和单色下仍能识别。请提供独立图标、Agent Inbox 字标组合及深浅背景版本。
+## Designer prompt
+
+> Design a logo for Agent Inbox, a macOS developer tool. It gathers coding conversations from Claude Code and Codex into a subscription inbox, signals when an agent needs an answer or permission, and helps users return to the original conversation. Focus on collected conversations, pending attention, and returning to context. Explore a simple inbox tray with one status dot and optional conversation-bubble negative space. Keep the silhouette clear and the spacing generous so it works at small sizes and in monochrome. Deliver a standalone icon, an Agent Inbox wordmark combination, and light/dark variants.

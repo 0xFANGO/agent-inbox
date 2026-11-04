@@ -1,4 +1,4 @@
-import { Translator } from "./i18n";
+import { Translator } from "./messages";
 import { Host, Session } from "./types";
 import { isClaudeCloudOnly } from "./claude-desktop";
 

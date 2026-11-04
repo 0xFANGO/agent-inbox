@@ -1,90 +1,98 @@
-# 使用指南
+# Usage
 
-[返回 README](../README.md) · [安装与卸载](setup.md)
+**English** | [简体中文](usage.zh-CN.md)
 
-## 命令
+[README](../README.md) · [Setup and removal](setup.md)
 
-| 命令           | 作用                                                                                   | 快捷键                                                      |
-| -------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| **全部会话**   | 默认展示全部会话，顶部筛选「已订阅 / 待输入 / 已完成」。列表首项为「订阅当前窗口对话」 | ↵ 或 ⌘S 订阅/取消订阅 · ⌘↵ 跳转 · ⌘I 详情 · ⌘R 刷新         |
-| **订阅列表**   | 只显示已订阅且未标记已处理的会话，分为待输入 / 已订阅 / 已完成                         | ↵ 跳转 · ⌘D 已处理 · ⌘S 取消订阅 · ⌘I 详情 · ⌘⇧D 归档已完成 |
-| **设置**       | 集中管理 Agent 接入、语言、内容搜索、菜单栏显示、恢复终端与系统通知                    | ↵ 打开所选设置                                              |
-| **刷新菜单栏** | 刷新菜单栏中的订阅会话与待输入计数；显示开关位于设置                                   | —                                                           |
+## Commands
 
-「全部会话」中的「已订阅」与状态筛选可重叠。「订阅列表」按待输入、已订阅、已完成三个互斥分区展示；运行中、本轮结束和状态尚未确认的订阅会话归入「已订阅」，运行状态仍用蓝灯表示。「已完成」只包含明确完成的会话，不再有「其他会话」分区。
+| Command              | Purpose                                                                                       | Shortcuts                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **All Sessions**     | Browse all sessions, filter by subscription or status, and subscribe to the current window    | ↵ / ⌘S subscribe or unsubscribe · ⌘↵ jump · ⌘I details · ⌘R refresh            |
+| **Subscriptions**    | Show subscribed, unhandled sessions in Waiting for You, Subscribed, and Completed sections    | ↵ jump · ⌘D mark handled · ⌘S unsubscribe · ⌘I details · ⌘⇧D archive completed |
+| **Session Menu Bar** | Show subscriptions and the waiting count; control visibility in Raycast's command preferences | —                                                                              |
 
-Raycast 的原生底栏只常驻一个主操作。会话行默认显示「订阅」，「跳转」可直接按 ⌘↵ 执行；点 Actions（⌘K）会同时看到前两项。订阅后列表保持打开，方便连续处理。
+Subscription and status filters may overlap in **All Sessions**. The three **Subscriptions** sections are mutually exclusive. Running, turn-ended, and unknown sessions appear under **Subscribed**; a blue dot still indicates running. **Completed** contains only explicitly completed sessions.
 
-返回上一级可按 Mac 的 **⌫ Delete**：搜索框为空时返回，有内容时先删字；Esc 仍遵循 Raycast 自身设置。接入面板通过原生导航栈返回。
+Raycast's bottom bar keeps one primary action visible. For a session in **All Sessions**, Return subscribes and ⌘Return jumps. Both appear in Actions (⌘K). Subscribing leaves the list open for further work. **Connect an Agent** and **Open Extension Preferences** are available in the action menu.
 
-### 搜索
+Press **⌫ Delete** with an empty search field to return to the previous view; with text present it deletes text first. Escape follows Raycast's own settings. The connection panel uses native stack navigation.
 
-默认只搜索会话标题、项目与会话 ID，**不自动加载或索引完整对话**。需要搜索正文时，点击搜索结果底部的「启用会话内容搜索」，或在设置中开启「会话全文搜索」，确认读取范围与本地索引开销后才开始。取消确认不会启用；关闭设置会中止索引并停止检索内容，已有索引留在本机缓存目录且不会自动更新。
+### Search
 
-启用后可检索完整的用户与 Agent 消息，支持中文短词、大小写归一和多个关键词；工具输出、思考过程和系统注入内容不纳入正文索引。首次流式读取本机记录，随后仅重新索引修改时间或大小变化的文件。查询使用本地 SQLite 索引，不逐次扫描原文件，也不会上传对话。索引过程中标题搜索仍可用；退出列表、刷新或关闭内容搜索可正常中止读取。
+Default search covers titles, projects, and session IDs. It does **not** automatically load or index full conversations. Choose **Set Up Full-Text Search** below the search results, or **Open Extension Preferences**, then enable **Full-Text Search**. The native preference explains what will be read and stored. Reopen **All Sessions** after changing it. Turning it off stops indexing and content queries; the existing index remains on disk and is no longer updated.
 
-2026-11-04 的本机样本为 237 个文件、约 1.39 GB 原始记录：首次索引约 4.38 秒、索引约 17.9 MB；热刷新约 44 ms，查询约 3–9 ms，另有 180 ms 输入防抖。冷索引峰值进程内存约 308 MB；不同机器和记录量会有差异。索引位于 `~/.sessions/cache/conversation-search.sqlite`，只有云端而没有本地记录的对话内容不能检索。
+The index includes user and agent messages, with short Chinese terms, case normalization, and multiple keywords supported. Tool output, reasoning, and system-injected content are excluded. The initial build streams local files; subsequent refreshes reindex only changed file sizes or modification times. Queries use local SQLite and never upload conversations. Title search remains available while indexing. Leaving or refreshing the list cancels pending reads safely.
 
-### 偏好设置
+A local sample on 2026-11-04 contained 237 files and about 1.39 GB of records: the first index took about 4.38 seconds, occupied 17.9 MB, and peaked at roughly 308 MB process memory. A warm refresh took about 44 ms and queries about 3–9 ms, plus 180 ms input debounce. These are measurements on one machine, not guarantees. The index lives at `~/.sessions/cache/conversation-search.sqlite`. Cloud-only content without local records cannot be searched.
 
-- **语言 / Language**：在「设置 → 语言 / Language」打开扩展偏好，可选中文（默认）或 English。界面和系统通知都会切换。
-- **默认终端**：在「设置 → 默认终端」中按 ↵ 打开扩展设置，可选 Terminal / iTerm2 / Ghostty。优先跳回原会话所在的窗口；无法定位原窗口时，才在所选终端执行 `claude --resume <id>` 或 `codex resume <id>`。
+### Preferences and connections
 
-- **接入 Agent**：选择 Claude Code / Codex 并执行接入，直接显示进度与成功／失败结果；原配置备份为 `*.agent-inbox.bak`。Codex 首次仍需在应用内执行 `/hooks` 确认。面板不再提供新增 Adapter 入口。
-- **在菜单栏显示订阅会话**：控制菜单栏订阅列表显示。「刷新菜单栏」用于手动更新状态；关闭显示后不加载订阅数据。Raycast 要求菜单栏组件有宿主命令，执行该命令会启动或刷新组件，见 [菜单栏命令生命周期](https://developers.raycast.com/api-reference/menu-bar-commands)。
-- **系统通知**：可在设置面板直接开关；仅已订阅会话进入待输入或出现新待处理请求时提醒。已处理、取消订阅、已回答或关闭通知后，尚未投递的提醒会取消。
+The interface and notification labels use English. Open **Actions → Open Extension Preferences** to configure:
 
-## 状态与订阅
+- **Default Terminal:** Terminal, iTerm2, or Ghostty. Navigation first targets the original window. If that fails, the selected terminal runs `claude --resume <id>` or `codex resume <id>`.
+- **System Notifications:** Enabled by default. Only subscribed sessions with unhandled requests generate alerts. Handled, unsubscribed, answered, or disabled notifications are canceled before delivery. Reopen a command after changing the preference to synchronize the background collector.
+- **Full-Text Search:** Disabled by default. Enabling it explicitly permits local conversation indexing; disabling it does not delete the index.
 
-- **运行中**：Agent 正在执行；**待输入**：有待回答、待授权或失败/额度/中断需要处理。
-- **本轮结束**：这一轮已停止，可以继续输入。`Stop`、`agent-turn-complete`、`end_turn` 都不会直接标成任务已完成。
-- **已完成**：只接受来源明确上报的 `completed`。旧版本由 Claude/Codex 停止事件推断的已完成记录，会迁移为本轮结束，保留订阅和已处理标记。
-- **状态未确认**：执行期间进程退出，但没有可靠的正常结束证据。不会按超时猜成已完成。
-- 结构化问题/授权按请求 ID 保存；停止、其他工具活动或新回合不会清除它。只有对应回复、请求取消/结束的解析事件才解除。Codex 桌面异步提问的 `accepted: true` 只代表已发出问题；多问题逐项等待真正回复。
-- 自然语言请求（例如“请确认后继续”“请选择”）只是备用提示，不用来证明任务完成；新用户输入会清除这类提示。
-- **订阅**：进入订阅列表，待处理时提醒。**取消订阅**：停止采集和提醒，仍可在全部会话中找到。
-- **已处理（⌘D）**：暂时离开订阅列表；状态变化或新的待处理请求会恢复显示。重新订阅也会恢复。
-- 订阅列表约 2 秒刷新，全部会话约 5 秒刷新；Raycast 菜单栏遵循宿主的 1 分钟刷新周期。
+Enable or disable **Session Menu Bar** in Raycast's command preferences. Its refresh interval is one minute. There is no second visibility switch inside the extension.
 
-接入时安装用户级后台采集服务 `com.fango.agent-inbox.collector`：只处理已订阅会话。首次分块读取其本地 transcript 恢复未回答请求，不建立全文搜索索引、不补发历史通知；随后保存读取位置并增量采集。单次读取最多 1 MB，超大单行跳过，不加载整份大文件进内存。缺失、未写完整或不支持的记录不能作为完成证据。纯云端、无本地 transcript 且未发 Hook 的会话仍无法可靠监测。
+**Connect an Agent** remains in the session action menus. It connects Claude Code or Codex and shows progress and success/failure. Existing configuration is backed up to `*.agent-inbox.bak`. Codex still requires its own `/hooks` approval. Custom adapters are implemented through the [integration interfaces](integrations.md).
 
-列表的临时状态恢复使用相同来源解析器和状态机，只读末尾最多 96 KB；已有结构化待处理请求不会被不完整的尾部样本清除。后台采集负责完整的订阅状态恢复。两者都不会改写 Agent 自身的对话文件。
+### Upgrading from the earlier development version
 
-### 标题同步
+Native preferences now control terminal recovery, notifications, and content search. Review them once after updating: notifications default to on and full-text search defaults to off. The old language and menu-bar fields in `config.json` are no longer used. Use **Connect an Agent → Reconnect** after upgrading to restart the collector with the updated CLI. If Raycast still lists an older development copy under the former author name, disable that copy so only the current extension manages shared preferences.
 
-标题按会话 ID 同步，独立于运行状态。后台持续更新已订阅会话；打开列表时也会刷新其中的会话标题。订阅列表约 2 秒、全部会话约 5 秒刷新，菜单栏遵循 Raycast 的约 1 分钟周期。
+## State and subscriptions
 
-- **Claude 本地桌面端**：读取桌面会话 metadata 中的当前名称。
-- **Claude CLI**：优先读取会话旁的 `custom-title.json`；旧版从 transcript 中增量提取 `custom-title` / `ai-title`。旧记录首次恢复采用有界分块，可能需要多个刷新周期；有明确自定义名称时不会被生成标题覆盖。
-- **Codex CLI / 桌面端**：读取本地会话目录的当前名称，兼容 `state*.sqlite` 与旧版 `session_index.jsonl`。
-- **Claude Cloud**：被动读取 Claude 已打开窗口的外层文档 ID 和标题，不激活或切换窗口、不遍历对话内容。只有 ID 精确匹配的会话才更新；未打开的纯云端会话要等客户端展示后才能同步。窗口不可访问或来源暂时缺失时保留最后确认的名称。
+- **Running:** The agent is executing. **Waiting for You:** A question, permission, failure, quota limit, or interruption needs attention.
+- **Turn ended:** The current turn stopped and accepts further input. `Stop`, `agent-turn-complete`, and `end_turn` do not prove task completion.
+- **Completed:** Requires an explicit `completed` event. Earlier Claude/Codex records inferred from stop events migrate to turn-ended while preserving subscription and handled state.
+- **Status unknown:** The process exited during execution without reliable evidence of a normal end. Timeouts never imply completion.
+- Structured questions and approvals persist by request ID. Stops, unrelated tools, and new turns do not clear them. Matching answers, cancellation, or closure events resolve only those requests. Codex desktop's asynchronous `accepted: true` means the question was issued, not answered; each question waits for its actual reply.
+- Natural-language requests are fallback hints. They never prove task completion, and new user input clears those inferred hints.
+- **Subscribe:** Follow a session and receive attention alerts. **Unsubscribe:** Stop collection and alerts; the conversation remains discoverable in All Sessions.
+- **Mark as Handled (⌘D):** Hide the session until its state changes, a new request arrives, or it is resubscribed.
+- Subscriptions refresh roughly every two seconds, All Sessions every five seconds, and the menu bar at Raycast's one-minute interval.
 
-新名称单独持久化，较旧的读取结果不能覆盖较新的结果；改名不会改变订阅、已处理、运行状态和最近活动时间，也不会触发新通知。已排队的通知在发送时使用最新名称。云端标题同步不代表云端运行状态已接入。
+The user LaunchAgent `com.fango.agent-inbox.collector` reads only subscribed sessions. It first restores unanswered requests from bounded transcript chunks, without building a full-text index or replaying old notifications, then saves cursors for incremental collection. Each read is at most 1 MB; oversized lines are skipped. Missing, incomplete, or unsupported records cannot prove completion. Cloud-only sessions without local transcripts or hooks cannot be monitored reliably.
 
-### 订阅当前窗口对话
+Temporary list-state recovery uses the same parsers and reducer but samples at most 96 KB from the tail. An incomplete sample cannot erase existing structured pending requests. The background collector performs full subscription recovery. Neither path modifies the agent's own files.
 
-从目标 Agent 窗口唤出 Raycast，打开「全部会话」，执行首项「订阅当前窗口对话」。插件关闭 Raycast 后识别前台窗口，再读取会话，按以下信息匹配：
+### Title synchronization
 
-- **Claude / Codex 桌面端**：优先通过原生 Accessibility 读取前台窗口文档 URL 中的会话 ID。URL 不能标识会话时使用当前文档的唯一标题；原生读取失败时才降级到 System Events。只有唯一匹配才订阅；Claude 的标题匹配仅接受以 `- Claude Code` 结尾的页面。普通 Claude 聊天、主页、标题有歧义或缺少窗口信息时，不会按最近活动时间猜一个会话。
-- **Terminal / iTerm2 / Ghostty 1.4**：读取选中标签页或焦点分屏的 tty。tmux 会同时匹配前台客户端 tty、服务器 socket 和 pane，避免订阅后台的其他会话。没有可靠 tty 或出现多个匹配时会提示无法识别。
+Titles sync by session ID independently of execution state. The collector updates subscribed sessions, and open lists refresh their titles at the intervals above.
 
-Codex 额外保留原生窗口标题，避免 Electron 的通用页面标题覆盖实际会话名；支持外部 thread 链接以及本地、独立窗口和 hash 会话路由。按实际表结构读取本地 `state*.sqlite` 的会话名称，不固定数据库版本；不支持时退到 `session_index.jsonl`。实际窗口匹配成功后才纠正旧记录的 CLI/App 来源，同时保留 Hook 的实时状态。关闭 Raycast 后会短暂等待焦点恢复，不按最近活动时间猜测。
+- **Claude local desktop:** Current names from desktop session metadata.
+- **Claude CLI:** Prefer neighboring `custom-title.json`; older transcripts incrementally supply `custom-title` and `ai-title`. Bounded recovery may take several refreshes. Generated names do not replace explicit custom names.
+- **Codex CLI and desktop:** Current catalog names from compatible `state*.sqlite` tables or older `session_index.jsonl`.
+- **Claude Cloud:** Passive reads of open Claude windows' outer document IDs and titles. No window activation, switching, or conversation traversal. Only exact ID matches update names. Unopened cloud-only sessions wait until the client displays them; unavailable sources preserve the last confirmed name.
 
-Claude 的本地 metadata 还用于把 `bridgeSessionIds` 关联到 `local_*` 和 CLI 会话 ID；兼容旧版字符串与新版数组，`session_*` / `cse_*` 的同后缀 ID 按同一映射处理。多个本地记录指向同一 ID 时拒绝匹配。纯云端 Code 页面没有本地记录时，也可按当前窗口的明确 `session_*` / `cse_*` ID 订阅并跳回；列表显示「云端状态未接入」，详情说明目前没有待输入提醒。未知的开始/活动时间显示为「—」，不会用订阅时间冒充会话活动，也不会推断为运行中或已完成。
+New names persist separately. Older observations cannot overwrite newer ones. Renaming does not alter state, subscriptions, handled markers, or activity times, and does not trigger alerts. Queued alerts use the latest name at send time. Cloud title sync does not provide cloud execution monitoring.
 
-CLI 的「订阅当前窗口对话」需要先接入 Hook，并由 Hook 采集原会话的 tty / tmux 定位信息。仅扫描到的历史文件通常不含这些信息，可在「全部会话」中手动选择并订阅。
+### Subscribe to the current conversation
 
-当前版本的 Codex 桌面订阅与跳转尚未完成完整实机验收，验证范围见 [测试记录](../TESTING.md) 与 [Codex 调查记录](codex-session-investigation.md)。窗口信息和终端 tty 查询依赖 macOS 自动化/辅助功能权限；不支持相关接口或权限不足时，可以在「全部会话」中手动选择并订阅。
+Invoke Raycast from the target agent window, open **All Sessions**, and choose **Subscribe to Current Conversation**. Raycast closes before foreground identification:
 
-## 跳回
+- **Claude/Codex desktop:** Prefer native Accessibility document URLs containing session IDs. Otherwise use a unique current-document title; fall back to System Events only if native reads fail. Claude title matching requires a Code page ending in `- Claude Code`. Ordinary chats, home pages, ambiguous titles, or missing window data never trigger a guess based on recent activity.
+- **Terminal/iTerm2/Ghostty 1.4:** Match the selected tab or focused split by tty. tmux also matches the foreground client tty, server socket, and pane. Missing or ambiguous tty data produces an identification failure.
 
-| 来源          | 跳回方式                                                                                                           | 兜底                                        |
-| ------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| Claude 桌面端 | 将 CLI transcript ID 映射到桌面端 `local_*` ID，再打开 `claude://code/continue?session=<local_id>`                 | 打开 Claude 并复制会话 ID，提示需要手动定位 |
-| Claude CLI    | 聚焦 tmux pane，或按 tty 匹配 Terminal / iTerm2 标签页、Ghostty 1.4 的终端分屏；旧版或不支持脚本的终端只能激活应用 | 在所选终端执行 `claude --resume <id>`       |
-| Codex CLI     | 同上                                                                                                               | 新开终端执行 `codex resume <id>`            |
-| Codex 桌面端  | `codex://threads/<threadId>`（有 `hostId` 时一并带上）                                                             | `codex://launch` 并把 ID 复制到剪贴板       |
+Codex preserves native window titles when Electron exposes a generic page title, accepts external thread links and local/detached/hash routes, and reads supported catalog schemas by capability rather than a fixed version. A confirmed window match corrects earlier CLI/desktop classification while retaining live hook state. Foreground capture briefly waits for focus restoration after Raycast closes.
 
-Claude 桌面端的 `local_*` ID 和 CLI transcript UUID 不同，不能直接把 CLI UUID 放进桌面端的 continue 链接。本机已验证映射后能跳回对应的 Claude Code 对话。仅激活应用或复制 ID 是兜底行为，不代表已精确到达目标会话。
+Claude metadata maps `bridgeSessionIds` to `local_*` and CLI IDs, accepting older strings and newer arrays. Same-suffix `session_*` and `cse_*` IDs share the mapping; ambiguous mappings are rejected. Without local records, an explicit cloud Code session ID can still be subscribed to and reopened. It shows **Cloud status unavailable**, has no input reminders, and displays unknown dates as “—” instead of using subscription time as activity.
 
-点通知会打开 `raycast://…/inbox?context=…`，Raycast 先弹窗确认（↵ 跳回，esc 取消）。在订阅列表里按 ↵ 直接跳，不弹确认。点通知跳回需要先装 `terminal-notifier`（`brew install terminal-notifier`），没装的话通知只能看、不能点。
+CLI current-window matching requires installed hooks to collect tty/tmux locators. Historical transcripts usually lack these, so select those sessions manually.
+
+Full live Codex desktop navigation validation remains pending; see the [test record](../TESTING.md) and [original investigation (Chinese)](codex-session-investigation.md). When permissions or terminal interfaces are unavailable, use manual selection.
+
+## Jump back
+
+| Source         | Primary route                                                                                              | Recovery                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Claude desktop | Map the CLI transcript ID to the desktop `local_*` ID and open `claude://code/continue?session=<local_id>` | Open Claude and copy the ID for manual location     |
+| Claude CLI     | Focus the tmux pane or a tty-matched Terminal/iTerm2 tab or Ghostty 1.4 split                              | Run `claude --resume <id>` in the selected terminal |
+| Codex CLI      | The same terminal targeting                                                                                | Run `codex resume <id>` in a new terminal           |
+| Codex desktop  | Open `codex://threads/<threadId>`, including `hostId` when available                                       | Open `codex://launch` and copy the ID               |
+
+Claude desktop IDs differ from CLI transcript UUIDs; putting a CLI UUID directly into a desktop continue link is invalid. Navigation through a verified local mapping has been tested. Activating an app or copying an ID is recovery, not proof that the target conversation was reached. Older terminals without the required scripting interface may only support application activation.
+
+A notification opens `raycast://…/inbox?context=…` and asks for confirmation (Return to jump, Escape to cancel). Return in Subscriptions jumps directly. Clickable notifications require `terminal-notifier`; without it, use the subscription list.

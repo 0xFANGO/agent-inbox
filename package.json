@@ -2,9 +2,9 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "agent-inbox",
   "title": "Agent Inbox",
-  "description": "订阅 Claude Code 与 Codex 会话，在需要你输入时提醒，并跳回原对话。",
+  "description": "Subscribe to Claude Code and Codex sessions, get notified when they need your input, and jump back to the conversation.",
   "icon": "extension-icon.png",
-  "author": "0xFango",
+  "author": "silencerichard",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -29,89 +29,52 @@
     "codex",
     "agent",
     "session",
-    "inbox",
-    "会话",
-    "订阅"
+    "inbox"
   ],
   "commands": [
     {
       "name": "all-sessions",
-      "title": "全部会话",
+      "title": "All Sessions",
       "subtitle": "Agent Inbox",
-      "description": "找到任意会话并订阅，包括历史会话。Find and subscribe to any session.",
+      "description": "Find and subscribe to Claude Code and Codex sessions, including past conversations.",
       "mode": "view",
       "keywords": [
         "all sessions",
         "search",
-        "history",
-        "quanbu"
+        "history"
       ]
     },
     {
       "name": "inbox",
-      "title": "订阅列表",
+      "title": "Subscriptions",
       "subtitle": "Agent Inbox",
-      "description": "查看已订阅会话的状态，取消订阅或跳转回对话。View and manage subscribed sessions.",
+      "description": "Follow subscribed sessions and jump back to conversations that need your input.",
       "mode": "view",
       "keywords": [
         "subscriptions",
         "subscribed",
-        "inbox",
-        "dingyue"
-      ]
-    },
-    {
-      "name": "settings",
-      "title": "设置",
-      "subtitle": "Agent Inbox",
-      "description": "管理 Agent 接入、语言、通知和恢复会话的终端。Manage agents, language, notifications, and terminal preferences.",
-      "mode": "view",
-      "keywords": [
-        "settings",
-        "setup",
-        "language",
-        "hooks",
-        "shezhi"
+        "inbox"
       ]
     },
     {
       "name": "menu-bar",
-      "title": "刷新菜单栏",
+      "title": "Session Menu Bar",
       "subtitle": "Agent Inbox",
-      "description": "刷新菜单栏中的订阅会话和待输入数量；显示开关位于设置。Refresh subscribed sessions and the waiting count in the menu bar. Manage visibility in Settings.",
+      "description": "Show subscribed sessions and the waiting count in the menu bar.",
       "mode": "menu-bar",
       "interval": "1m",
       "keywords": [
         "subscriptions",
         "refresh",
-        "menu bar",
-        "caidanlan"
+        "menu bar"
       ]
     }
   ],
   "preferences": [
     {
-      "name": "language",
-      "title": "语言 / Language",
-      "description": "界面与通知语言。Language for the interface and notifications.",
-      "type": "dropdown",
-      "required": false,
-      "default": "zh",
-      "data": [
-        {
-          "title": "中文",
-          "value": "zh"
-        },
-        {
-          "title": "English",
-          "value": "en"
-        }
-      ]
-    },
-    {
       "name": "resumeTerminal",
-      "title": "默认终端 / Default Terminal",
-      "description": "优先跳回原会话；无法定位原窗口时，在所选终端恢复 CLI 会话。Focus the original session when possible; otherwise resume in the selected terminal.",
+      "title": "Default Terminal",
+      "description": "Focus the original session when possible; otherwise resume in the selected terminal.",
       "type": "dropdown",
       "required": false,
       "default": "terminal",
@@ -129,6 +92,24 @@
           "value": "ghostty"
         }
       ]
+    },
+    {
+      "name": "notifications",
+      "title": "System Notifications",
+      "label": "Notify when a subscribed session needs attention",
+      "description": "Only unhandled requests in subscribed sessions trigger a notification. Open a command after changing this preference to sync the background collector.",
+      "type": "checkbox",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "contentSearchEnabled",
+      "title": "Full-Text Search",
+      "label": "Index local conversation content",
+      "description": "Read user and agent messages and build a search index on this Mac. Nothing is uploaded. Turning this off stops indexing and queries without deleting the existing index.",
+      "type": "checkbox",
+      "required": false,
+      "default": false
     }
   ],
   "dependencies": {

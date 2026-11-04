@@ -7,7 +7,7 @@ import { Store } from "../src/core/db";
 import { jumpClaude } from "../src/core/adapters/claude";
 import { DEFAULT_CONFIG } from "../src/core/config";
 import { absoluteTime, relativeTime, rowTime, statusLabel } from "../src/core/format";
-import { translator } from "../src/core/i18n";
+import { translator } from "../src/core/messages";
 import { tempDir } from "./helpers";
 
 const noIO = {
@@ -76,20 +76,18 @@ test("cloud fallback requires a supported conversation URL and rejects conflicti
 
 test("cloud-only rows explain missing monitoring and unknown dates, while real events retain their status", async (t) => {
   const focused = (await sessionForForeground(context, [], noIO))!;
-  const zh = translator("zh"),
-    en = translator("en");
-  assert.equal(statusLabel(focused, zh), "云端状态未接入");
+  const en = translator();
   assert.equal(statusLabel(focused, en), "Cloud status unavailable");
-  assert.equal(absoluteTime(focused.startedAt, zh), "—");
-  assert.equal(relativeTime(focused.updatedAt, zh), "—");
-  assert.equal(rowTime({ ...focused, status: "running", updatedAt: 1000 }, zh, 1000), zh("time.justNow"));
+  assert.equal(absoluteTime(focused.startedAt, en), "—");
+  assert.equal(relativeTime(focused.updatedAt, en), "—");
+  assert.equal(rowTime({ ...focused, status: "running", updatedAt: 1000 }, en, 1000), en("time.justNow"));
   const store = new Store(join(tempDir(t), "db.sqlite"));
   await store.subscribeEntry(focused);
   await store.record({ agent: "claude", sessionId: focused.sessionId, type: "needs_input", requestIds: ["q"], at: 1000 });
   const live = (await sessionForForeground(context, await store.all(), noIO))!;
   assert.equal(live.status, "needs_input");
   assert.equal(isClaudeCloudOnly(live), false);
-  assert.equal(statusLabel(live, zh), "待输入");
+  assert.equal(statusLabel(live, en), "Waiting for You");
   assert.equal(live.updatedAt, 1000);
 });
 

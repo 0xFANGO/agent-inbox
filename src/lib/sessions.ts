@@ -3,7 +3,7 @@ import { allAdapters, getAdapter } from "../core/adapters";
 import { Store } from "../core/db";
 import { enrichClaudeSessions } from "../core/claude-desktop";
 import { TitleSynchronizer } from "../core/titles";
-import { Translator } from "../core/i18n";
+import { Translator } from "../core/messages";
 import { Config, Session } from "../core/types";
 import { recoverIdleSessionStates } from "../core/transcript-state";
 

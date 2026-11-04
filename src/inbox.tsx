@@ -16,11 +16,12 @@ import { useCachedPromise } from "@raycast/utils";
 import { useEffect, useRef, useState } from "react";
 import { allAdapters } from "./core/adapters";
 import { agentHostLabel, hostTag, rowTime } from "./core/format";
-import { Translator } from "./core/i18n";
+import { Translator } from "./core/messages";
 import { projectName } from "./core/paths";
 import { groupInbox, InboxSection } from "./core/status";
 import { Config, Session } from "./core/types";
 import { agentIcon, statusDot } from "./components/icons";
+import { ConnectionActions } from "./components/ConnectionActions";
 import { SessionDetail } from "./components/SessionDetail";
 import { locale } from "./lib/env";
 import { activeSessions, jumpBack, store } from "./lib/sessions";
@@ -57,12 +58,7 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
   }
 
   return (
-    <List
-      isLoading={isLoading}
-      isShowingDetail={showDetail && !empty}
-      navigationTitle={t("nav.inbox")}
-      searchBarPlaceholder={t("search.placeholder")}
-    >
+    <List isLoading={isLoading} isShowingDetail={showDetail && !empty} searchBarPlaceholder={t("search.placeholder")}>
       {empty && connected.data === false ? (
         <List.EmptyView
           icon={Icon.Plug}
@@ -70,11 +66,7 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
           description={t("empty.onboard.desc")}
           actions={
             <ActionPanel>
-              <Action
-                title={t("nav.settings")}
-                icon={Icon.Plug}
-                onAction={() => launchCommand({ name: "settings", type: LaunchType.UserInitiated })}
-              />
+              <ConnectionActions />
             </ActionPanel>
           }
         />
@@ -90,6 +82,7 @@ export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }
                 icon={Icon.List}
                 onAction={() => launchCommand({ name: "all-sessions", type: LaunchType.UserInitiated })}
               />
+              <ConnectionActions />
             </ActionPanel>
           }
         />
@@ -198,6 +191,7 @@ function InboxItem(props: {
               shortcut={Keyboard.Shortcut.Common.Refresh}
               onAction={props.onRefresh}
             />
+            <ConnectionActions />
           </ActionPanel.Section>
         </ActionPanel>
       }

@@ -1,6 +1,6 @@
 import { List } from "@raycast/api";
 import { absoluteTime, agentHostLabel, relativeTime, statusLabel } from "../core/format";
-import { Translator } from "../core/i18n";
+import { Translator } from "../core/messages";
 import { tildify } from "../core/paths";
 import { Session } from "../core/types";
 import { isClaudeCloudOnly } from "../core/claude-desktop";

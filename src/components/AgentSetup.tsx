@@ -3,7 +3,7 @@ import { useCachedPromise } from "@raycast/utils";
 import { join } from "node:path";
 import { useRef, useState } from "react";
 import { BUILTIN_ADAPTERS, Adapter } from "../core/adapters";
-import { Translator } from "../core/i18n";
+import { Translator } from "../core/messages";
 import { applyPlan, installCli, resolveNode } from "../core/install";
 import { installCollector } from "../core/service";
 import { CLI_PATH } from "../core/paths";

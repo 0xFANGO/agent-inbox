@@ -1,18 +1,20 @@
-# 安装与卸载
+# Setup and Removal
 
-[返回 README](../README.md)
+**English** | [简体中文](setup.zh-CN.md)
 
-## 环境
+[README](../README.md)
 
-- macOS 与已安装的 Raycast；本项目使用 macOS 的窗口、通知和 LaunchAgent 接口。
-- Node.js **22.22.2 或更高版本**、npm、Git。最低 Node 版本来自锁定的 `@raycast/api`；仓库的 `.nvmrc` 使用 Node 24。
-- 至少一个已使用的 Claude Code 或 Codex 客户端。Agent Inbox 不代为安装或登录这些客户端。
-- 系统 `sqlite3`，用于本地状态数据库与搜索索引。
-- 可选的 `terminal-notifier`，用于可点击的 macOS 通知。
+## Requirements
 
-## 从源码安装
+- macOS and Raycast. The extension uses macOS window, notification, and LaunchAgent APIs.
+- Node.js **22.22.2 or later**, npm, and Git. The minimum follows the locked Raycast API dependency; `.nvmrc` selects Node 24.
+- An existing Claude Code or Codex setup. Agent Inbox does not install or sign in to those clients.
+- The system `sqlite3` for local state and search indexes.
+- Optional `terminal-notifier` for clickable macOS notifications.
 
-当前安装方式为本地开发安装，没有可供下载的 GitHub Release。
+## Install from source
+
+Source installation is currently available; there is no downloadable GitHub Release yet.
 
 ```sh
 git clone https://github.com/0xFANGO/agent-inbox.git
@@ -21,74 +23,74 @@ npm ci
 npm run dev
 ```
 
-仓库尚未公开时，clone 需要已有的 GitHub 访问权限。使用 nvm 的开发者可先执行 `nvm install`，再执行 `npm ci`。
+Cloning requires GitHub access while the repository is private. With nvm, run `nvm install` before `npm ci`.
 
-`npm run dev` 打包辅助 CLI，并通过 `ray develop` 加载扩展。在 Raycast 搜索 **Agent Inbox**，应能看到「全部会话」「订阅列表」「设置」「刷新菜单栏」四个命令。
+`npm run dev` bundles the helper CLI and loads the extension with `ray develop`. Search for **Agent Inbox** in Raycast to find **All Sessions**, **Subscriptions**, and **Session Menu Bar**.
 
-### 接入第一个 Agent
+### Connect your first agent
 
-1. 打开 **Agent Inbox → 设置**，选择 **接入 Agent**。
-2. 选择 Claude Code 或 Codex，按回车执行接入；面板会显示结果。
-3. Codex 首次接入后，按提示在 Codex 内执行 `/hooks` 确认信任。已运行会话是否加载新 Hook 取决于客户端，可在新会话中验证。
-4. 打开 **全部会话**，选一个会话并按回车订阅。也可以从目标 Agent 窗口唤出 Raycast，使用首项「订阅当前窗口对话」。
-5. 打开 **订阅列表** 查看它。支持监测的会话在需要回答或授权时进入「待输入」，系统通知开启时会提醒；按回车跳回原对话。
+1. Open **All Sessions**, then its action menu (⌘K), and choose **Connect an Agent**.
+2. Select Claude Code or Codex and press Return. The panel reports progress and the result.
+3. For Codex, approve new hooks with `/hooks` inside Codex. Whether an existing session loads new hooks depends on the client; verify with a new session if needed.
+4. In **All Sessions**, select a conversation and press Return to subscribe. To follow the focused conversation, invoke Raycast from the agent window and choose **Subscribe to Current Conversation**.
+5. Open **Subscriptions**. Monitored sessions enter **Waiting for You** when an answer or permission is needed. With notifications enabled, new requests trigger an alert. Press Return to jump back.
 
-首次可以订阅一个已经存在的会话验证列表展示。通知应使用新产生的问题或授权请求验证：首次恢复历史状态不会补发历史通知。
+Start by subscribing to an existing session to check the list. Test alerts with a new question or permission request: recovering historical state does not send old notifications.
 
-### 权限与可点击通知
+### Permissions and clickable notifications
 
-窗口识别和终端定位需要 macOS 的「辅助功能」或「自动化」权限。根据系统提示，在「系统设置 → 隐私与安全性」中给执行操作的 Raycast / 终端授权。没有可靠的窗口信息时，在「全部会话」中手动选择会话。
+Window recognition and terminal targeting need macOS Accessibility or Automation permissions. Follow the system prompt in **System Settings → Privacy & Security** for the Raycast or terminal process performing the action. If window information is unavailable, select the session manually in **All Sessions**.
 
-如需点击系统通知后跳回，可使用 Homebrew 安装：
+For clickable notifications, install with Homebrew:
 
 ```sh
 brew install terminal-notifier
 ```
 
-没有它时仍可显示系统通知，但不能从通知直接跳回。点击通知后，Raycast 会先确认，再跳转；订阅列表内按回车直接跳转。macOS 通知权限和专注模式也会影响通知显示。
+Without it, system notifications still display but cannot navigate back. Clicking a notification opens a confirmation in Raycast before jumping; Return within **Subscriptions** jumps directly. macOS notification permissions and Focus settings also affect delivery.
 
-## 安装会修改什么
+## What setup changes
 
-| 位置                                                           | 用途                                                          |
-| -------------------------------------------------------------- | ------------------------------------------------------------- |
-| `~/.claude/settings.json`                                      | Claude Code Hook 配置；使用 `CLAUDE_CONFIG_DIR` 时跟随该目录  |
-| `~/.codex/config.toml`、`~/.codex/hooks.json`                  | Codex notify 转发与 Hook 配置；使用 `CODEX_HOME` 时跟随该目录 |
-| `~/.sessions/bin/agent-inbox.mjs`                              | Hook 与采集器使用的稳定 CLI 路径                              |
-| `~/Library/LaunchAgents/com.fango.agent-inbox.collector.plist` | 用户级后台采集服务                                            |
-| `~/.sessions/`                                                 | 状态、订阅、配置、通知队列与缓存                              |
+| Location                                                       | Purpose                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `~/.claude/settings.json`                                      | Claude hooks; follows `CLAUDE_CONFIG_DIR` when set                  |
+| `~/.codex/config.toml`, `~/.codex/hooks.json`                  | Codex notify forwarding and hooks; follows `CODEX_HOME`             |
+| `~/.sessions/bin/agent-inbox.mjs`                              | Stable CLI path used by hooks and the collector                     |
+| `~/Library/LaunchAgents/com.fango.agent-inbox.collector.plist` | User background collector                                           |
+| `~/.sessions/`                                                 | State, subscriptions, configuration, notification queue, and caches |
 
-接入会保留其他 Hook 和原有 Codex notify 转发；修改已有配置前写入同路径的 `*.agent-inbox.bak`。备份为最近一次修改前的内容，多次接入可能覆盖旧备份。接入面板也会安装或重启后台采集器。更新扩展后，下次打开命令会同步已经安装的 CLI。
+Setup preserves unrelated hooks and existing Codex notify forwarding. Before changing an existing configuration file, it writes a sibling `*.agent-inbox.bak`. This backup stores the previous contents and may be replaced by later setup changes. Connecting also installs or restarts the collector. After an extension update, opening a command refreshes an already-installed CLI.
 
-Agent 自身的对话文件只读。默认搜索标题、项目和 ID；全文搜索需要另行确认，索引留在本机，关闭后不会自动删除已有索引。详细行为见 [使用指南](usage.md#搜索)。
+Agent conversation files remain read-only. Search uses titles, projects, and IDs by default. Enable **Full-Text Search** in native extension preferences to index conversation content locally. Disabling it leaves the existing index on disk. See [search](usage.md#search).
 
-## 停用或卸载
+## Disable or remove
 
-临时停止某个会话的后台采集与提醒：在列表中取消订阅。只停止系统提醒：在「设置」关闭系统通知。
+Unsubscribe to stop monitoring and alerts for a session. To stop all alerts, turn off **System Notifications** in Raycast's extension preferences, then reopen a command to sync the collector configuration.
 
-完整卸载按以下顺序操作：
+To remove the extension:
 
-1. 在「设置 → 接入 Agent」选择已接入的 Agent，在 Actions 中执行「移除 hooks」。对每个接入的 Agent 分别操作；只移除本扩展条目，不要直接用旧备份覆盖整份客户端配置。
-2. 停止后台采集器，并删除它的启动项：
+1. Open **All Sessions → Actions → Connect an Agent**. For each connected agent, choose **Remove Hooks** from its actions. This removes only this extension's entries; do not restore an old backup over the entire client configuration.
+2. Stop the collector and remove its login item:
 
    ```sh
    launchctl bootout "gui/$(id -u)/com.fango.agent-inbox.collector"
    rm -f "$HOME/Library/LaunchAgents/com.fango.agent-inbox.collector.plist"
    ```
 
-   若服务已停止，第一条命令可能报告找不到服务；仍需删除启动项，避免下次登录再次启动。仅移除 Hook 不会自动卸载采集器。
+   If already stopped, the first command may report that the service is missing. Still remove the plist to prevent a later login from starting it. Removing hooks alone does not uninstall the collector.
 
-3. 在 Raycast 的扩展设置中移除 Agent Inbox。
-4. 按需删除 `~/.sessions/`；这会丢失订阅、配置和本地索引。使用自定义 `AGENT_INBOX_HOME` 时检查对应目录。该目录不是 Agent 原始对话存储，删除它不会删除 Claude / Codex 中的对话。
+3. Remove Agent Inbox in Raycast's extension preferences.
+4. Optionally delete `~/.sessions/`, losing subscriptions, configuration, and the local index. Check the corresponding directory if you use `AGENT_INBOX_HOME`. This is separate from the original Claude and Codex conversation storage.
 
-## 排查
+## Troubleshooting
 
-| 现象               | 检查                                                                          |
-| ------------------ | ----------------------------------------------------------------------------- |
-| 无法订阅当前窗口   | 目标是否是受支持的 Code 页面；窗口权限与 tty 是否可读；先在全部会话里手动订阅 |
-| 纯云端会话没有提醒 | 没有本地记录或 Hook 时不具备状态监测，详情会显示「云端状态未接入」            |
-| 会话未进入已完成   | 普通回合停止只代表「本轮结束」；仅明确的完成事件进入已完成                    |
-| 没有系统通知       | 检查订阅、已处理标记、通知开关与 macOS 权限；历史状态恢复不会补发提醒         |
-| 通知不能点击       | 检查 `terminal-notifier` 是否可用；仍可在订阅列表跳回                         |
-| 跳转只打开了应用   | 未能精确定位时会复制 ID 或恢复 CLI，会话详情与提示会说明兜底结果              |
+| Symptom                            | Check                                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Current-window subscription fails  | Use a supported Code page and check window/tty permissions; select the session manually if needed                            |
+| A cloud-only session has no alerts | Without local records or hooks, monitoring is unavailable; its status says “Cloud status unavailable”                        |
+| A session is not marked completed  | An ordinary stop means “Turn ended”; only an explicit completion event produces “Completed”                                  |
+| No system notification             | Check subscription, handled status, notification preferences, and macOS permissions; history recovery does not replay alerts |
+| Notification cannot be clicked     | Install `terminal-notifier`, or jump from Subscriptions                                                                      |
+| Navigation only opens the app      | Exact targeting was unavailable; the UI reports ID-copy or CLI-resume recovery                                               |
 
-诊断日志位于 `~/.sessions/log.txt` 和 `~/.sessions/collector.log`。提交问题前删去路径、会话内容和凭据，见 [贡献说明](../CONTRIBUTING.md)。
+Diagnostic logs are `~/.sessions/log.txt` and `~/.sessions/collector.log`. Redact paths, conversation content, and credentials before [reporting an issue](../CONTRIBUTING.md).
