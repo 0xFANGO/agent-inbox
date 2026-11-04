@@ -4,6 +4,7 @@ import { CACHE_DIR, CLAUDE_PROJECTS, CODEX_SESSION_INDEX, CODEX_SESSIONS } from 
 import { lastSentence, toTitle } from "./status";
 import { parseClaude, parseCodex, parseLines, readHeadTail, TranscriptInfo } from "./transcript";
 import { HistoryEntry, Host } from "./types";
+import { findClaudeDesktopSession, readClaudeDesktopSessions } from "./claude-desktop";
 
 interface FileRef {
   agent: "claude" | "codex";
@@ -13,7 +14,7 @@ interface FileRef {
 }
 
 const CACHE_FILE = join(CACHE_DIR, "history.json");
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 function listClaude(root: string): FileRef[] {
   const out: FileRef[] = [];
@@ -91,7 +92,6 @@ function toEntry(ref: FileRef, info: TranscriptInfo, names: Map<string, string>)
   }
   if (!sessionId) return null;
   const title = names.get(sessionId) || toTitle(info.title) || toTitle(info.firstPrompt);
-  if (!title) return null; // empty sessions (opened and closed) are noise
   return {
     agent: ref.agent,
     sessionId,
@@ -102,6 +102,7 @@ function toEntry(ref: FileRef, info: TranscriptInfo, names: Map<string, string>)
     startedAt: info.startedAt || ref.mtime,
     updatedAt: Math.round(ref.mtime),
     transcriptPath: ref.path,
+    ...(ref.agent === "claude" && info.entrypoint ? { locator: { claudeEntrypoint: info.entrypoint } } : {}),
   };
 }
 
@@ -135,6 +136,7 @@ export interface ScanOptions {
   codexRoot?: string;
   codexIndex?: string;
   useCache?: boolean;
+  claudeDesktopRoot?: string;
 }
 
 /**
@@ -147,6 +149,7 @@ export function scanHistory(opts: ScanOptions = {}): HistoryEntry[] {
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, limit);
   const names = codexThreadNames(opts.codexIndex ?? CODEX_SESSION_INDEX);
+  const desktop = readClaudeDesktopSessions(opts.claudeDesktopRoot);
   const useCache = opts.useCache ?? true;
   const cache = useCache ? loadCache() : { v: CACHE_VERSION, files: {} };
   const nextCache: CacheShape = { v: CACHE_VERSION, files: {} };
@@ -169,16 +172,50 @@ export function scanHistory(opts: ScanOptions = {}): HistoryEntry[] {
     }
     if (entry && ref.agent === "codex" && names.has(entry.sessionId)) entry = { ...entry, title: names.get(entry.sessionId)! };
     nextCache.files[ref.path] = { mtime: ref.mtime, size: ref.size, entry };
-    if (entry) out.push(entry);
+    if (entry?.agent === "claude") {
+      const record = findClaudeDesktopSession(entry.sessionId, desktop);
+      if (record && !(entry.host === "cli" && entry.locator?.claudeEntrypoint))
+        entry = {
+          ...entry,
+          host: "app",
+          title: record.title || entry.title,
+          cwd: entry.cwd || record.cwd,
+          locator: { ...entry.locator, claudeDesktopId: record.sessionId },
+        };
+    }
+    if (entry?.title) out.push(entry);
   }
   if (useCache) saveCache(nextCache);
 
+  // A desktop session can have no readable local transcript yet. Its metadata still provides a precise jump target.
+  const seenCli = new Set(out.filter((e) => e.agent === "claude").map((e) => e.sessionId));
+  for (const r of desktop) {
+    const id = r.cliSessionId || r.sessionId;
+    if (!r.title || seenCli.has(id) || findClaudeDesktopSession(id, desktop) !== r) continue;
+    out.push({
+      agent: "claude",
+      sessionId: id,
+      host: "app",
+      title: r.title,
+      cwd: r.cwd,
+      summary: "",
+      startedAt: r.createdAt,
+      updatedAt: r.lastActivityAt || r.createdAt,
+      transcriptPath: "",
+      locator: { claudeDesktopId: r.sessionId },
+    });
+    seenCli.add(id);
+  }
+  out.sort((a, b) => b.updatedAt - a.updatedAt);
+
   // One entry per session (Claude can split a session across files after /clear or resume).
   const seen = new Set<string>();
-  return out.filter((e) => {
-    const k = `${e.agent}:${e.sessionId}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  return out
+    .filter((e) => {
+      const k = `${e.agent}:${e.sessionId}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, limit);
 }

@@ -155,9 +155,11 @@ export class Store {
 
   /** Subscribe to a session that may only exist as a transcript on disk (history). */
   async subscribeEntry(s: Session): Promise<void> {
-    const existing = await this.get(s.agent, s.sessionId);
-    if (existing) return this.setSubscribed(s.agent, s.sessionId, true);
-    await this.put({ ...s, subscribed: true });
+    // A hook may create the row concurrently. Never replace its state with an old history snapshot.
+    await this.run(
+      `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s, subscribed: true })}) ` +
+        `ON CONFLICT(agent, session_id) DO UPDATE SET subscribed=1;`,
+    );
   }
 
   async markHandled(agent: string, sessionId: string, at = Date.now()): Promise<void> {

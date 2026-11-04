@@ -99,3 +99,35 @@ test("titles are single-line and trimmed", () => {
   assert.equal(toTitle("  \n# Fix the CI\nmore"), "Fix the CI");
   assert.equal(toTitle("x".repeat(200)).length, 80);
 });
+
+test("failure and quota transitions notify once, survive session end and clear when work resumes", () => {
+  for (const type of ["failed", "quota"] as const) {
+    const initial = { ...run([ev("progress")]), subscribed: true, handledAt: 5 };
+    const attention = applyEvent(initial, ev(type))!;
+    assert.equal(attention.next.status, "needs_input");
+    assert.equal(attention.next.attention, type);
+    assert.equal(attention.next.handledAt, null);
+    assert.equal(attention.notify, true);
+    assert.equal(applyEvent(attention.next, ev(type))!.notify, false);
+    const ended = run([ev("ended")], attention.next);
+    assert.equal(ended.attention, type);
+    assert.equal(ended.status, "needs_input");
+    const resumed = run([ev("progress")], ended);
+    assert.equal(resumed.status, "running");
+    assert.equal(resumed.attention, null);
+  }
+});
+
+test("events with sparse metadata preserve the session title, location and transcript", () => {
+  const initial = run([
+    ev("progress", { title: "Original", cwd: "/repo", transcriptPath: "/transcript", locator: { tty: "/dev/ttys001", tmuxPane: "%2" } }),
+  ]);
+  const next = run(
+    [ev("needs_input", { title: "Another title", cwd: "", transcriptPath: "", locator: { tty: "", tmuxPane: undefined, hostId: "host" } })],
+    initial,
+  );
+  assert.equal(next.title, "Original");
+  assert.equal(next.cwd, "/repo");
+  assert.equal(next.transcriptPath, "/transcript");
+  assert.deepEqual(next.locator, { tty: "/dev/ttys001", tmuxPane: "%2", hostId: "host" });
+});

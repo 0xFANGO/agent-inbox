@@ -10,7 +10,7 @@ import { Config, Session } from "./core/types";
 import { agentIcon, statusDot } from "./components/icons";
 import { SessionDetail } from "./components/SessionDetail";
 import { locale } from "./lib/env";
-import { jumpBack, store } from "./lib/sessions";
+import { allSessions, jumpBack, store } from "./lib/sessions";
 
 const key = (s: { agent: string; sessionId: string }) => `${s.agent}:${s.sessionId}`;
 
@@ -19,7 +19,7 @@ export default function AllSessions() {
   const [showDetail, setShowDetail] = useState(false);
   const { data, isLoading, mutate } = useCachedPromise(
     async () => {
-      const [rows, history] = await Promise.all([store.all(1000), Promise.resolve().then(() => scanHistory({ limit: 400 }))]);
+      const [rows, history] = await Promise.all([allSessions(1000), Promise.resolve().then(() => scanHistory({ limit: 400 }))]);
       return mergeSessions(rows, history);
     },
     [],

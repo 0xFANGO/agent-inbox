@@ -1,10 +1,19 @@
 import { closeMainWindow, showHUD, showToast, Toast } from "@raycast/api";
 import { getAdapter } from "../core/adapters";
 import { Store } from "../core/db";
+import { enrichClaudeSessions } from "../core/claude-desktop";
 import { Translator } from "../core/i18n";
 import { Config, Session } from "../core/types";
 
 export const store = new Store();
+
+export async function activeSessions(): Promise<Session[]> {
+  return enrichClaudeSessions(await store.active());
+}
+
+export async function allSessions(limit = 500): Promise<Session[]> {
+  return enrichClaudeSessions(await store.all(limit));
+}
 
 /** Jump back to the session and close Raycast. Shows a HUD when a fallback was used. */
 export async function jumpBack(session: Session, config: Config, t: Translator): Promise<void> {

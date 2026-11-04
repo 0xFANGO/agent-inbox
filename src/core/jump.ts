@@ -13,22 +13,24 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   return r.ok;
 }
 
+const cliNavigation = { activateBundle, bundleFor, focusTmuxPane, focusTty, openInTerminal, tmuxPaneAlive, ttyAlive };
+
 /**
  * Jump back to a terminal session: focus the tmux pane or terminal tab that still runs it;
  * if it is gone, resume it in a new terminal window.
  */
-export async function jumpToCli(session: Session, resumeCommand: string, config: Config): Promise<JumpResult> {
+export async function jumpToCli(session: Session, resumeCommand: string, config: Config, navigation = cliNavigation): Promise<JumpResult> {
   const loc = session.locator ?? {};
-  const alive = await ttyAlive(loc.tty);
-  if (loc.tmuxPane && (await tmuxPaneAlive(loc)) && (alive || !loc.tty)) {
-    if (await focusTmuxPane(loc)) return { ok: true, method: "tmux" };
+  const alive = await navigation.ttyAlive(loc.tty);
+  if (loc.tmuxPane && (await navigation.tmuxPaneAlive(loc)) && (alive || !loc.tty)) {
+    if (await navigation.focusTmuxPane(loc)) return { ok: true, method: "tmux" };
   }
   if (alive && loc.tty) {
-    const bundle = bundleFor(loc);
-    if (await focusTty(loc.tty, bundle)) return { ok: true, method: "tab" };
-    // Ghostty and friends: no scripting API for tabs yet, raise the app.
-    if (bundle && (await activateBundle(bundle))) return { ok: true, method: "activate" };
+    const bundle = navigation.bundleFor(loc);
+    if (await navigation.focusTty(loc.tty, bundle)) return { ok: true, method: "tab" };
+    // Older versions or unsupported terminals may only allow raising the application.
+    if (bundle && (await navigation.activateBundle(bundle))) return { ok: true, method: "activate" };
   }
-  const ok = await openInTerminal(resumeCommand, session.cwd, config.resumeTerminal);
+  const ok = await navigation.openInTerminal(resumeCommand, session.cwd, config.resumeTerminal);
   return { ok, method: "resume" };
 }

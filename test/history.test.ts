@@ -1,15 +1,15 @@
 import { strict as assert } from "node:assert";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { scanHistory } from "../src/core/history";
 import { mergeSessions } from "../src/core/merge";
+import { tempDir } from "./helpers";
 
 const j = (o: unknown) => JSON.stringify(o);
 
-test("scan Claude and Codex transcripts without importing them", () => {
-  const root = mkdtempSync(join(tmpdir(), "inbox-hist-"));
+test("scan Claude and Codex transcripts without importing them", (t) => {
+  const root = tempDir(t);
   const claude = join(root, "claude");
   const codex = join(root, "codex");
   mkdirSync(join(claude, "-Users-me-fango-media"), { recursive: true });
@@ -61,7 +61,13 @@ test("scan Claude and Codex transcripts without importing them", () => {
   const index = join(root, "session_index.jsonl");
   writeFileSync(index, j({ id, thread_name: "README 参数出处" }) + "\n");
 
-  const entries = scanHistory({ claudeRoot: claude, codexRoot: codex, codexIndex: index, useCache: false });
+  const entries = scanHistory({
+    claudeRoot: claude,
+    codexRoot: codex,
+    codexIndex: index,
+    claudeDesktopRoot: join(root, "desktop"),
+    useCache: false,
+  });
   assert.equal(entries.length, 2);
   const c = entries.find((e) => e.agent === "claude")!;
   assert.equal(c.title, "写文章：Session manager 选题");

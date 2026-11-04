@@ -32,6 +32,10 @@ export interface Locator {
   termProgram?: string;
   /** Codex desktop host id, when known */
   hostId?: string;
+  /** Claude desktop's local_* ID, distinct from the CLI transcript UUID. */
+  claudeDesktopId?: string;
+  /** Explicit Claude runtime source; kept so a CLI resume can override an old desktop mapping. */
+  claudeEntrypoint?: string;
 }
 
 export interface AgentEvent {
@@ -79,6 +83,7 @@ export interface HistoryEntry {
   startedAt: number;
   updatedAt: number;
   transcriptPath: string;
+  locator?: Locator;
 }
 
 export type Language = "zh" | "en";

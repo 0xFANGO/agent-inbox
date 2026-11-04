@@ -5,7 +5,8 @@ export function readHeadTail(path: string, headBytes = 64 * 1024, tailBytes = 48
   const size = statSync(path).size;
   const fd = openSync(path, "r");
   try {
-    const headLen = Math.min(size, headBytes);
+    // If both windows cover the file, read it together so a record spanning their boundary survives.
+    const headLen = size <= headBytes + tailBytes ? size : Math.min(size, headBytes);
     const hb = Buffer.alloc(headLen);
     readSync(fd, hb, 0, headLen, 0);
     let head = hb.toString("utf8").split("\n");
@@ -103,10 +104,10 @@ export function parseClaude(head: J[], tail: J[]): TranscriptInfo {
     entrypoint: "",
     originator: "",
   };
-  for (const e of head) {
+  for (const e of [...head, ...tail]) {
     if (!info.sessionId && str(e.sessionId)) info.sessionId = str(e.sessionId);
     if (!info.cwd && str(e.cwd)) info.cwd = str(e.cwd);
-    if (!info.entrypoint && str(e.entrypoint)) info.entrypoint = str(e.entrypoint);
+    if (str(e.entrypoint)) info.entrypoint = str(e.entrypoint);
     if (!info.startedAt && e.timestamp) info.startedAt = ts(e.timestamp);
     if (e.type === "user" && !info.firstPrompt && !e.isMeta) {
       const text = textOf(obj(e.message).content);

@@ -4,7 +4,7 @@ import { relativeTime, rowTime } from "./core/format";
 import { groupInbox, waitingCount } from "./core/status";
 import { agentIcon } from "./components/icons";
 import { locale } from "./lib/env";
-import { jumpBack, store } from "./lib/sessions";
+import { activeSessions, jumpBack } from "./lib/sessions";
 
 /**
  * Always shows how many subscribed sessions wait for you; the bell turns orange when one does.
@@ -13,7 +13,7 @@ import { jumpBack, store } from "./lib/sessions";
  */
 export default function MenuBar() {
   const { t, config } = locale();
-  const { data, isLoading } = useCachedPromise(() => store.active(), []);
+  const { data, isLoading } = useCachedPromise(activeSessions, []);
   const sessions = (data ?? []).filter((s) => s.subscribed);
   const groups = groupInbox(sessions);
   const count = waitingCount(sessions);

@@ -50,16 +50,16 @@ export async function tmuxPaneAlive(loc: Locator): Promise<boolean> {
 }
 
 /** Focus a tmux pane: switch the attached client to it, then raise the terminal app. */
-export async function focusTmuxPane(loc: Locator): Promise<boolean> {
+export async function focusTmuxPane(loc: Locator, actions = { run, activateBundle }): Promise<boolean> {
   if (!loc.tmuxPane) return false;
   const tmux = tmuxBinary();
   const pane = loc.tmuxPane;
-  const switched = await run(tmux, tmuxArgs(loc, ["switch-client", "-t", pane]));
-  await run(tmux, tmuxArgs(loc, ["select-window", "-t", pane]));
-  await run(tmux, tmuxArgs(loc, ["select-pane", "-t", pane]));
+  const switched = await actions.run(tmux, tmuxArgs(loc, ["switch-client", "-t", pane]));
+  const window = await actions.run(tmux, tmuxArgs(loc, ["select-window", "-t", pane]));
+  const selected = await actions.run(tmux, tmuxArgs(loc, ["select-pane", "-t", pane]));
   const bundle = bundleFor(loc);
-  if (bundle && bundle !== "tmux") await activateBundle(bundle);
-  return switched.ok || !!bundle;
+  const activated = bundle && bundle !== "tmux" ? await actions.activateBundle(bundle) : false;
+  return window.ok && selected.ok && (switched.ok || activated);
 }
 
 /** Is an agent process still attached to this tty? */
@@ -76,10 +76,10 @@ export async function activateBundle(bundleId: string): Promise<boolean> {
   return r.ok;
 }
 
-/** Select the Terminal.app / iTerm2 tab that owns a tty. */
-export async function focusTty(tty: string, bundleId: string | undefined): Promise<boolean> {
+/** Select the Terminal.app / iTerm2 tab or Ghostty surface that owns a tty. */
+export async function focusTty(tty: string, bundleId: string | undefined, actions = { osascript }): Promise<boolean> {
   if (bundleId === TERMINAL_BUNDLE) {
-    const r = await osascript(`
+    const r = await actions.osascript(`
 tell application "Terminal"
   repeat with w in windows
     repeat with t in tabs of w
@@ -96,7 +96,7 @@ return "miss"`);
     return r.ok && r.stdout.trim() === "ok";
   }
   if (bundleId === ITERM_BUNDLE) {
-    const r = await osascript(`
+    const r = await actions.osascript(`
 tell application "iTerm2"
   repeat with w in windows
     repeat with t in tabs of w
@@ -115,37 +115,80 @@ end tell
 return "miss"`);
     return r.ok && r.stdout.trim() === "ok";
   }
+  if (bundleId === GHOSTTY_BUNDLE) {
+    // Ghostty 1.4 exposes terminal.tty; focus also selects its split, tab and window.
+    const r = await actions.osascript(`
+tell application "Ghostty"
+  repeat with term in terminals
+    if tty of term is ${asString(tty)} then
+      focus term
+      return "ok"
+    end if
+  end repeat
+end tell
+return "miss"`);
+    return r.ok && r.stdout.trim() === "ok";
+  }
   return false;
 }
 
-/** The tty of the frontmost tab in Terminal.app or iTerm2. */
-export async function frontTty(bundleId: string): Promise<string | undefined> {
+const TTY_PATH = /^\/dev\/(?:tty[A-Za-z0-9]+|pts\/\d+)$/;
+
+/** The selected terminal's tty. The caller must establish which app is actually in front. */
+export async function frontTty(bundleId: string, actions = { osascript }): Promise<string | undefined> {
   let script = "";
-  if (bundleId === TERMINAL_BUNDLE) script = `tell application "Terminal" to get tty of selected tab of front window`;
-  else if (bundleId === ITERM_BUNDLE) script = `tell application "iTerm2" to get tty of current session of current window`;
+  if (bundleId === TERMINAL_BUNDLE)
+    script = `tell application "Terminal"
+  if (count of windows) is 0 then return ""
+  return tty of selected tab of front window
+end tell`;
+  else if (bundleId === ITERM_BUNDLE)
+    script = `tell application "iTerm2"
+  if (count of windows) is 0 then return ""
+  return tty of current session of current window
+end tell`;
+  else if (bundleId === GHOSTTY_BUNDLE)
+    script = `tell application "Ghostty"
+  if front window is missing value then return ""
+  return tty of focused terminal of selected tab of front window
+end tell`;
   else return undefined;
-  const r = await osascript(script);
+  const r = await actions.osascript(script);
   const tty = r.stdout.trim();
-  return r.ok && tty.startsWith("/dev/") ? tty : undefined;
+  return r.ok && TTY_PATH.test(tty) ? tty : undefined;
 }
 
-/** tmux clients: which pane each terminal tty is showing, most recently active first. */
-export async function tmuxClients(): Promise<{ tty: string; pane: string; activity: number }[]> {
-  const r = await run(tmuxBinary(), ["list-clients", "-F", "#{client_tty}\t#{pane_id}\t#{client_activity}"]);
+export interface TmuxClient {
+  tty: string;
+  pane: string;
+  activity: number;
+  socket: string;
+}
+
+/** Query one tmux server. Match client tty and socket; activity does not establish foreground focus. */
+export async function tmuxClients(socket?: string, actions = { run }): Promise<TmuxClient[]> {
+  const r = await actions.run(
+    tmuxBinary(),
+    tmuxArgs({ tmuxSocket: socket }, ["list-clients", "-F", "#{client_tty}\t#{pane_id}\t#{client_activity}\t#{socket_path}"]),
+  );
   if (!r.ok) return [];
   return r.stdout
     .split("\n")
     .map((l) => l.split("\t"))
-    .filter((p) => p.length === 3)
-    .map(([tty, pane, activity]) => ({ tty, pane, activity: Number(activity) || 0 }))
-    .sort((a, b) => b.activity - a.activity);
+    .filter((p) => p.length === 4 && TTY_PATH.test(p[0]) && /^%\d+$/.test(p[1]) && p[3].startsWith("/"))
+    .map(([tty, pane, activity, reportedSocket]) => ({ tty, pane, activity: Number(activity) || 0, socket: socket || reportedSocket }));
 }
 
 /** Open a new terminal window running `command` in `cwd`. */
-export async function openInTerminal(command: string, cwd: string, terminal: ResumeTerminal): Promise<boolean> {
+export async function openInTerminal(
+  command: string,
+  cwd: string,
+  terminal: ResumeTerminal,
+  actions = { run, osascript },
+): Promise<boolean> {
   const line = cwd && existsSync(cwd) ? `cd ${shQuote(cwd)} && ${command}` : command;
   if (terminal === "iterm") {
-    const r = await osascript(`
+    const r = await actions.osascript(`
 tell application "iTerm2"
   activate
   set w to (create window with default profile)
@@ -157,10 +200,10 @@ end tell`);
     const args = ["-na", "Ghostty", "--args"];
     if (cwd && existsSync(cwd)) args.push(`--working-directory=${cwd}`);
     args.push("-e", process.env.SHELL || "/bin/zsh", "-lc", command);
-    const r = await run("/usr/bin/open", args);
+    const r = await actions.run("/usr/bin/open", args);
     if (r.ok) return true;
   }
-  const r = await osascript(`
+  const r = await actions.osascript(`
 tell application "Terminal"
   activate
   do script ${asString(line)}

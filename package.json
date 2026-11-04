@@ -4,7 +4,7 @@
   "title": "Session Manager",
   "description": "订阅 Claude Code 与 Codex 会话，等你输入时提醒，一键跳回原对话。Subscribe to Claude Code and Codex sessions, get notified when they wait for you, and jump back.",
   "icon": "extension-icon.png",
-  "author": "fango",
+  "author": "0xFango",
   "license": "MIT",
   "platforms": [
     "macOS"
@@ -109,7 +109,7 @@
     {
       "name": "resumeTerminal",
       "title": "恢复会话用的终端 / Terminal",
-      "description": "原窗口已关闭时，在哪个终端里恢复 CLI 会话。Terminal used to resume a CLI session whose window is gone.",
+      "description": "优先跳回原会话；无法定位原窗口时，在所选终端恢复 CLI 会话。Focus the original session when possible; otherwise resume in the selected terminal.",
       "type": "dropdown",
       "required": false,
       "default": "terminal",
@@ -147,7 +147,10 @@
     "build": "npm run build:cli && ray build",
     "dev": "npm run build:cli && ray develop",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run build:cli",
     "test": "esbuild test/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --out-extension:.js=.mjs --log-level=warning && node --test .test-build/*.test.mjs",
+    "lint:code": "eslint src cli test && prettier --check src cli test",
+    "check": "npm test && npm run typecheck && npm run lint:code && npm run build",
     "lint": "ray lint",
     "fix-lint": "ray lint --fix",
     "publish": "npx @raycast/api@latest publish"

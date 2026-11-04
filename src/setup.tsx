@@ -8,6 +8,7 @@ import {
   environment,
   Icon,
   List,
+  openExtensionPreferences,
   showToast,
   Toast,
   useNavigation,
@@ -37,7 +38,7 @@ function hostsLabel(a: Adapter, t: Translator): string {
  * Nothing is written before the exact content is shown and confirmed.
  */
 export default function Setup() {
-  const { t } = locale();
+  const { t, config } = locale();
   const [notifications, setNotifications] = useState(readConfig().notifications);
   const { data, isLoading, revalidate } = useCachedPromise(async () => allAdapters().map((a) => ({ adapter: a, detect: a.detect() })));
   const notifier = terminalNotifierPath();
@@ -88,6 +89,19 @@ export default function Setup() {
         />
       </List.Section>
       <List.Section title={t("section.dataAndAlerts")}>
+        <List.Item
+          icon={Icon.Terminal}
+          title={t("setup.resumeTerminal")}
+          subtitle={t("setup.resumeTerminalSub")}
+          accessories={[
+            { text: config.resumeTerminal === "iterm" ? "iTerm2" : config.resumeTerminal === "ghostty" ? "Ghostty" : "Terminal" },
+          ]}
+          actions={
+            <ActionPanel>
+              <Action title={t("action.preferences")} icon={Icon.Gear} onAction={openExtensionPreferences} />
+            </ActionPanel>
+          }
+        />
         <List.Item
           icon={Icon.Bell}
           title={t("setup.notifications")}

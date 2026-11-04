@@ -40,26 +40,29 @@ export function findNotify(toml: string): NotifySpan | null {
   if (!m) return null;
   let i = m.index + m[0].length;
   let inStr: string | null = null;
+  let stringStart = i;
+  const items: string[] = [];
   for (; i < toml.length; i++) {
     const c = toml[i];
     if (inStr) {
       if (c === "\\" && inStr === '"') i++;
-      else if (c === inStr) inStr = null;
-    } else if (c === '"' || c === "'") inStr = c;
-    else if (c === "]") break;
-  }
-  const body = toml.slice(m.index + m[0].length, i);
-  const items: string[] = [];
-  const re = /"((?:[^"\\]|\\.)*)"|'([^']*)'/g;
-  let im: RegExpExecArray | null;
-  while ((im = re.exec(body))) {
-    if (im[1] !== undefined) {
-      try {
-        items.push(JSON.parse(`"${im[1]}"`));
-      } catch {
-        items.push(im[1]);
+      else if (c === inStr) {
+        const value = toml.slice(stringStart, i + 1);
+        if (inStr === '"') {
+          try {
+            items.push(JSON.parse(value));
+          } catch {
+            items.push(value.slice(1, -1));
+          }
+        } else items.push(value.slice(1, -1));
+        inStr = null;
       }
-    } else items.push(im[2]);
+    } else if (c === '"' || c === "'") {
+      inStr = c;
+      stringStart = i;
+    } else if (c === "#") {
+      while (i < toml.length && toml[i] !== "\n") i++;
+    } else if (c === "]") break;
   }
   let end = i + 1;
   while (end < toml.length && toml[end] !== "\n") end++;

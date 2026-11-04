@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 // cli/agent-inbox.ts
-import { appendFileSync, mkdirSync as mkdirSync5, readFileSync as readFileSync6 } from "node:fs";
+import { appendFileSync, mkdirSync as mkdirSync5, readFileSync as readFileSync7 } from "node:fs";
 
 // src/core/adapters/claude.ts
-import { existsSync as existsSync2, readFileSync } from "node:fs";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
 
 // src/core/paths.ts
 import { homedir } from "node:os";
@@ -21,6 +21,7 @@ var LOG_PATH = join(ROOT, "log.txt");
 var CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || join(HOME, ".claude");
 var CLAUDE_PROJECTS = join(CLAUDE_DIR, "projects");
 var CLAUDE_SETTINGS = join(CLAUDE_DIR, "settings.json");
+var CLAUDE_DESKTOP_SESSIONS = process.env.AGENT_INBOX_CLAUDE_DESKTOP_ROOT || join(HOME, "Library", "Application Support", "Claude", "claude-code-sessions");
 var CODEX_DIR = process.env.CODEX_HOME || join(HOME, ".codex");
 var CODEX_SESSIONS = join(CODEX_DIR, "sessions");
 var CODEX_CONFIG = join(CODEX_DIR, "config.toml");
@@ -89,16 +90,16 @@ async function tmuxPaneAlive(loc) {
   const r = await run(tmuxBinary(), tmuxArgs(loc, ["display-message", "-p", "-t", loc.tmuxPane, "#{pane_id}"]));
   return r.ok && r.stdout.trim() === loc.tmuxPane;
 }
-async function focusTmuxPane(loc) {
+async function focusTmuxPane(loc, actions = { run, activateBundle }) {
   if (!loc.tmuxPane) return false;
   const tmux = tmuxBinary();
   const pane = loc.tmuxPane;
-  const switched = await run(tmux, tmuxArgs(loc, ["switch-client", "-t", pane]));
-  await run(tmux, tmuxArgs(loc, ["select-window", "-t", pane]));
-  await run(tmux, tmuxArgs(loc, ["select-pane", "-t", pane]));
+  const switched = await actions.run(tmux, tmuxArgs(loc, ["switch-client", "-t", pane]));
+  const window = await actions.run(tmux, tmuxArgs(loc, ["select-window", "-t", pane]));
+  const selected = await actions.run(tmux, tmuxArgs(loc, ["select-pane", "-t", pane]));
   const bundle = bundleFor(loc);
-  if (bundle && bundle !== "tmux") await activateBundle(bundle);
-  return switched.ok || !!bundle;
+  const activated = bundle && bundle !== "tmux" ? await actions.activateBundle(bundle) : false;
+  return window.ok && selected.ok && (switched.ok || activated);
 }
 async function ttyAlive(tty) {
   if (!tty) return false;
@@ -111,9 +112,9 @@ async function activateBundle(bundleId) {
   const r = await run("/usr/bin/open", ["-b", bundleId]);
   return r.ok;
 }
-async function focusTty(tty, bundleId) {
+async function focusTty(tty, bundleId, actions = { osascript }) {
   if (bundleId === TERMINAL_BUNDLE) {
-    const r = await osascript(`
+    const r = await actions.osascript(`
 tell application "Terminal"
   repeat with w in windows
     repeat with t in tabs of w
@@ -130,7 +131,7 @@ return "miss"`);
     return r.ok && r.stdout.trim() === "ok";
   }
   if (bundleId === ITERM_BUNDLE) {
-    const r = await osascript(`
+    const r = await actions.osascript(`
 tell application "iTerm2"
   repeat with w in windows
     repeat with t in tabs of w
@@ -149,12 +150,25 @@ end tell
 return "miss"`);
     return r.ok && r.stdout.trim() === "ok";
   }
+  if (bundleId === GHOSTTY_BUNDLE) {
+    const r = await actions.osascript(`
+tell application "Ghostty"
+  repeat with term in terminals
+    if tty of term is ${asString(tty)} then
+      focus term
+      return "ok"
+    end if
+  end repeat
+end tell
+return "miss"`);
+    return r.ok && r.stdout.trim() === "ok";
+  }
   return false;
 }
-async function openInTerminal(command, cwd, terminal) {
+async function openInTerminal(command, cwd, terminal, actions = { run, osascript }) {
   const line = cwd && existsSync(cwd) ? `cd ${shQuote(cwd)} && ${command}` : command;
   if (terminal === "iterm") {
-    const r2 = await osascript(`
+    const r2 = await actions.osascript(`
 tell application "iTerm2"
   activate
   set w to (create window with default profile)
@@ -166,10 +180,10 @@ end tell`);
     const args = ["-na", "Ghostty", "--args"];
     if (cwd && existsSync(cwd)) args.push(`--working-directory=${cwd}`);
     args.push("-e", process.env.SHELL || "/bin/zsh", "-lc", command);
-    const r2 = await run("/usr/bin/open", args);
+    const r2 = await actions.run("/usr/bin/open", args);
     if (r2.ok) return true;
   }
-  const r = await osascript(`
+  const r = await actions.osascript(`
 tell application "Terminal"
   activate
   do script ${asString(line)}
@@ -182,44 +196,127 @@ async function openUrl(url) {
   const r = await run("/usr/bin/open", [url]);
   return r.ok;
 }
-async function copyToClipboard(text) {
-  const r = await run("/usr/bin/pbcopy", [], text);
+async function copyToClipboard(text2) {
+  const r = await run("/usr/bin/pbcopy", [], text2);
   return r.ok;
 }
-async function jumpToCli(session, resumeCommand, config) {
+var cliNavigation = { activateBundle, bundleFor, focusTmuxPane, focusTty, openInTerminal, tmuxPaneAlive, ttyAlive };
+async function jumpToCli(session, resumeCommand, config, navigation = cliNavigation) {
   const loc = session.locator ?? {};
-  const alive = await ttyAlive(loc.tty);
-  if (loc.tmuxPane && await tmuxPaneAlive(loc) && (alive || !loc.tty)) {
-    if (await focusTmuxPane(loc)) return { ok: true, method: "tmux" };
+  const alive = await navigation.ttyAlive(loc.tty);
+  if (loc.tmuxPane && await navigation.tmuxPaneAlive(loc) && (alive || !loc.tty)) {
+    if (await navigation.focusTmuxPane(loc)) return { ok: true, method: "tmux" };
   }
   if (alive && loc.tty) {
-    const bundle = bundleFor(loc);
-    if (await focusTty(loc.tty, bundle)) return { ok: true, method: "tab" };
-    if (bundle && await activateBundle(bundle)) return { ok: true, method: "activate" };
+    const bundle = navigation.bundleFor(loc);
+    if (await navigation.focusTty(loc.tty, bundle)) return { ok: true, method: "tab" };
+    if (bundle && await navigation.activateBundle(bundle)) return { ok: true, method: "activate" };
   }
-  const ok = await openInTerminal(resumeCommand, session.cwd, config.resumeTerminal);
+  const ok = await navigation.openInTerminal(resumeCommand, session.cwd, config.resumeTerminal);
   return { ok, method: "resume" };
+}
+
+// src/core/claude-desktop.ts
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join as join2 } from "node:path";
+var CLAUDE_BUNDLE = "com.anthropic.claudefordesktop";
+var CLAUDE_LOCAL_ID = /^local_[A-Za-z0-9-]{1,64}$/;
+var CLAUDE_BRIDGE_ID = /^(?:cse|session)_([A-Za-z0-9-]{1,128})$/;
+var text = (v) => typeof v === "string" ? v : "";
+var time = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+var cached = /* @__PURE__ */ new Map();
+function readClaudeDesktopSessions(root = CLAUDE_DESKTOP_SESSIONS) {
+  const records = [];
+  const visit = (dir, depth) => {
+    try {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join2(dir, entry.name);
+        if (entry.isDirectory() && depth < 2) visit(path, depth + 1);
+        else if (entry.isFile() && entry.name.startsWith("local_") && entry.name.endsWith(".json")) {
+          try {
+            const st = statSync(path);
+            if (st.size > 10 * 1024 * 1024) continue;
+            const hit = cached.get(path);
+            let record2 = hit?.mtime === st.mtimeMs && hit.size === st.size ? hit.record : void 0;
+            if (record2 === void 0) {
+              const raw = JSON.parse(readFileSync(path, "utf8"));
+              record2 = raw && CLAUDE_LOCAL_ID.test(text(raw.sessionId)) ? {
+                sessionId: raw.sessionId,
+                cliSessionId: text(raw.cliSessionId),
+                cwd: text(raw.cwd),
+                title: text(raw.title),
+                createdAt: time(raw.createdAt),
+                lastActivityAt: time(raw.lastActivityAt),
+                lastFocusedAt: time(raw.lastFocusedAt),
+                isArchived: raw.isArchived === true,
+                ...bridgeAliases(raw.bridgeSessionIds)
+              } : null;
+              cached.set(path, { mtime: st.mtimeMs, size: st.size, record: record2 });
+            }
+            if (record2) records.push(record2);
+          } catch {
+          }
+        }
+      }
+    } catch {
+    }
+  };
+  visit(root, 0);
+  return records;
+}
+function bridgeAliases(value) {
+  const ids = (Array.isArray(value) ? value : [value]).filter((id) => typeof id === "string" && CLAUDE_BRIDGE_ID.test(id));
+  return ids.length ? { bridgeSessionIds: [...new Set(ids)] } : {};
+}
+function sameClaudeBridgeId(a, b) {
+  const suffix = a.match(CLAUDE_BRIDGE_ID)?.[1];
+  return !!suffix && suffix === b.match(CLAUDE_BRIDGE_ID)?.[1];
+}
+function findClaudeDesktopSession(id, records) {
+  const matches = records.filter(
+    (r) => r.cliSessionId === id || r.sessionId === id || r.bridgeSessionIds?.some((b) => sameClaudeBridgeId(b, id))
+  );
+  return matches.length === 1 ? matches[0] : void 0;
+}
+function hasClaudeTerminalLocator(s3) {
+  return s3.host === "cli" && (!!s3.locator.claudeEntrypoint && !/desktop/i.test(s3.locator.claudeEntrypoint) || (s3.status === "running" || s3.status === "needs_input") && !!(s3.locator.tty || s3.locator.tmuxPane) && s3.locator.bundleId !== CLAUDE_BUNDLE);
+}
+function enrichClaudeSessions(sessions, records) {
+  if (!sessions.some((s3) => s3.agent === "claude")) return sessions;
+  const desktop = records ?? readClaudeDesktopSessions();
+  return sessions.map((s3) => {
+    if (s3.agent !== "claude" || hasClaudeTerminalLocator(s3)) return s3;
+    const record2 = findClaudeDesktopSession(s3.sessionId, desktop);
+    if (!record2) return s3;
+    return {
+      ...s3,
+      host: "app",
+      title: record2.title || s3.title,
+      cwd: record2.cwd || s3.cwd,
+      locator: { ...s3.locator, claudeDesktopId: record2.sessionId }
+    };
+  });
 }
 
 // src/core/status.ts
 var TITLE_MAX = 80;
-function toTitle(text) {
-  if (!text) return "";
-  const line = text.replace(/<[^>]+>/g, " ").split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+function toTitle(text2) {
+  if (!text2) return "";
+  const line = text2.replace(/<[^>]+>/g, " ").split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
   if (!line) return "";
   const clean = line.replace(/\s+/g, " ").replace(/^[#>*\-\s]+/, "");
   return clean.length > TITLE_MAX ? clean.slice(0, TITLE_MAX - 1) + "\u2026" : clean;
 }
-function lastSentence(text, max = 240) {
-  if (!text) return "";
-  const flat = text.replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim();
+function lastSentence(text2, max = 240) {
+  if (!text2) return "";
+  const flat = text2.replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim();
   if (!flat) return "";
   if (flat.length <= max) return flat;
   return "\u2026" + flat.slice(flat.length - max + 1);
 }
-function endsWithQuestion(text) {
-  if (!text) return false;
-  const t = text.replace(/```[\s\S]*?```/g, "").trim().replace(/[\s*_`)"'」』）]+$/u, "");
+function endsWithQuestion(text2) {
+  if (!text2) return false;
+  const t = text2.replace(/```[\s\S]*?```/g, "").trim().replace(/[\s*_`)"'」』）]+$/u, "");
   return /[?？]$/u.test(t);
 }
 function statusFor(ev, prev) {
@@ -290,12 +387,12 @@ function stripEmpty(o) {
 }
 
 // src/core/transcript.ts
-import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync as statSync2 } from "node:fs";
 function readHeadTail(path, headBytes = 64 * 1024, tailBytes = 48 * 1024) {
-  const size = statSync(path).size;
+  const size = statSync2(path).size;
   const fd = openSync(path, "r");
   try {
-    const headLen = Math.min(size, headBytes);
+    const headLen = size <= headBytes + tailBytes ? size : Math.min(size, headBytes);
     const hb = Buffer.alloc(headLen);
     readSync(fd, hb, 0, headLen, 0);
     let head = hb.toString("utf8").split("\n");
@@ -327,8 +424,8 @@ function parseLines(lines) {
 }
 var str = (v) => typeof v === "string" ? v : "";
 var obj = (v) => v && typeof v === "object" ? v : {};
-function isScaffolding(text) {
-  const t = text.trimStart();
+function isScaffolding(text2) {
+  const t = text2.trimStart();
   return t.length === 0 || t.startsWith("<command-") || t.startsWith("<local-command") || t.startsWith("<system-reminder>") || t.startsWith("<environment_context>") || t.startsWith("<user_instructions>") || t.startsWith("<user-prompt-submit-hook>") || t.startsWith("# AGENTS.md") || t.startsWith("Caveat:") || t.startsWith("[Request interrupted");
 }
 function textOf(content) {
@@ -348,15 +445,24 @@ function ts(v) {
   return Number.isFinite(n) ? n : 0;
 }
 function parseClaude(head, tail) {
-  const info = { sessionId: "", cwd: "", title: "", firstPrompt: "", lastAssistant: "", startedAt: 0, entrypoint: "", originator: "" };
-  for (const e of head) {
+  const info = {
+    sessionId: "",
+    cwd: "",
+    title: "",
+    firstPrompt: "",
+    lastAssistant: "",
+    startedAt: 0,
+    entrypoint: "",
+    originator: ""
+  };
+  for (const e of [...head, ...tail]) {
     if (!info.sessionId && str(e.sessionId)) info.sessionId = str(e.sessionId);
     if (!info.cwd && str(e.cwd)) info.cwd = str(e.cwd);
-    if (!info.entrypoint && str(e.entrypoint)) info.entrypoint = str(e.entrypoint);
+    if (str(e.entrypoint)) info.entrypoint = str(e.entrypoint);
     if (!info.startedAt && e.timestamp) info.startedAt = ts(e.timestamp);
     if (e.type === "user" && !info.firstPrompt && !e.isMeta) {
-      const text = textOf(obj(e.message).content);
-      if (!isScaffolding(text)) info.firstPrompt = text;
+      const text2 = textOf(obj(e.message).content);
+      if (!isScaffolding(text2)) info.firstPrompt = text2;
     }
   }
   for (const e of [...head, ...tail]) {
@@ -388,22 +494,29 @@ function lastClaudeAssistant(path) {
 var HOOK_MARKER = "agent-inbox.mjs";
 
 // src/core/adapters/json.ts
-function parseJsonFile(text, path) {
-  if (!text.trim()) return {};
+function parseJsonFile(text2, path) {
+  if (!text2.trim()) return {};
   try {
-    const v = JSON.parse(text);
+    const v = JSON.parse(text2);
     if (v && typeof v === "object" && !Array.isArray(v)) return v;
   } catch {
   }
   throw new Error(`${path} is not valid JSON; fix it before connecting.`);
 }
+function isOurCommand(hook2) {
+  return typeof hook2?.command === "string" && hook2.command.includes(HOOK_MARKER);
+}
 function isOurs(entry) {
-  return Array.isArray(entry?.hooks) && entry.hooks.some((h) => typeof h?.command === "string" && h.command.includes(HOOK_MARKER));
+  return Array.isArray(entry?.hooks) && entry.hooks.some(isOurCommand);
 }
 function withoutOurHooks(file) {
   const hooks = {};
   for (const [event2, entries] of Object.entries(file.hooks ?? {})) {
-    const kept = (Array.isArray(entries) ? entries : []).filter((e) => !isOurs(e));
+    const kept = (Array.isArray(entries) ? entries : []).flatMap((entry) => {
+      if (!isOurs(entry)) return [entry];
+      const remaining = entry.hooks.filter((hook2) => !isOurCommand(hook2));
+      return remaining.length ? [{ ...entry, hooks: remaining }] : [];
+    });
     if (kept.length) hooks[event2] = kept;
   }
   const next = { ...file };
@@ -425,12 +538,12 @@ function stringify(file) {
 }
 
 // src/core/adapters/claude.ts
-var CLAUDE_APP_BUNDLE = "com.anthropic.claudefordesktop";
+var CLAUDE_APP_BUNDLE = CLAUDE_BUNDLE;
 var CLAUDE_APP_PATHS = ["/Applications/Claude.app"];
 var CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"];
 function read(path) {
   try {
-    return readFileSync(path, "utf8");
+    return readFileSync2(path, "utf8");
   } catch {
     return "";
   }
@@ -442,11 +555,19 @@ function hookEntries(ctx) {
   return out;
 }
 var s = (v) => typeof v === "string" ? v : "";
-function hostFromEnv(env) {
+function hostFromEnv(env, transcriptPath) {
   const entry = env.CLAUDE_CODE_ENTRYPOINT ?? "";
-  if (/desktop/i.test(entry)) return "app";
-  if (env.__CFBundleIdentifier === CLAUDE_APP_BUNDLE) return "app";
-  return "cli";
+  if (entry) return { host: /desktop/i.test(entry) ? "app" : "cli", entrypoint: entry };
+  if (transcriptPath) {
+    try {
+      const { head, tail } = readHeadTail(transcriptPath);
+      const info = parseClaude(parseLines(head), parseLines(tail));
+      if (info.entrypoint) return { host: /desktop/i.test(info.entrypoint) ? "app" : "cli", entrypoint: info.entrypoint };
+    } catch {
+    }
+  }
+  if (env.__CFBundleIdentifier === CLAUDE_APP_BUNDLE) return { host: "app" };
+  return {};
 }
 function attentionFor(type, message) {
   if (type === "idle_prompt" || type === "auth_success") return null;
@@ -460,10 +581,12 @@ function parseClaudeHook(payload, env, now = Date.now()) {
   const sessionId = s(payload.session_id);
   const name = s(payload.hook_event_name);
   if (!sessionId || !name) return null;
+  const source = hostFromEnv(env, s(payload.transcript_path));
   const base = {
     agent: "claude",
     sessionId,
-    host: hostFromEnv(env),
+    host: source.host,
+    locator: source.entrypoint ? { claudeEntrypoint: source.entrypoint } : void 0,
     cwd: s(payload.cwd),
     transcriptPath: s(payload.transcript_path),
     at: now
@@ -495,6 +618,24 @@ function parseClaudeHook(payload, env, now = Date.now()) {
     default:
       return null;
   }
+}
+var claudeNavigation = { openUrl, activateBundle, copyToClipboard, jumpToCli, readClaudeDesktopSessions };
+async function jumpClaude(session, config, navigation = claudeNavigation) {
+  const records = navigation.readClaudeDesktopSessions();
+  const resolved = enrichClaudeSessions([session], records)[0];
+  if (resolved.host !== "app") return navigation.jumpToCli(resolved, `claude --resume ${shQuote(resolved.sessionId)}`, config);
+  const record2 = findClaudeDesktopSession(resolved.sessionId, records);
+  const desktopId = record2?.sessionId || resolved.locator.claudeDesktopId || resolved.sessionId;
+  let url;
+  if (CLAUDE_LOCAL_ID.test(desktopId) && !record2?.isArchived) {
+    url = `claude://code/continue?session=${encodeURIComponent(desktopId)}`;
+  } else if (/^(cse|session)_[A-Za-z0-9_-]+$/.test(resolved.sessionId)) {
+    url = `claude://code/${encodeURIComponent(resolved.sessionId)}`;
+  }
+  if (url && await navigation.openUrl(url)) return { ok: true, method: "url" };
+  const activated = await navigation.activateBundle(CLAUDE_APP_BUNDLE);
+  const copied = await navigation.copyToClipboard(resolved.sessionId);
+  return { ok: activated && copied, method: "copied" };
 }
 var claudeAdapter = {
   id: "claude",
@@ -544,24 +685,18 @@ var claudeAdapter = {
   parseHook(_kind, payload, env) {
     return parseClaudeHook(payload, env);
   },
-  async jump(session, config) {
-    if (session.host === "app") {
-      if (await openUrl(`claude://code/continue?session=${encodeURIComponent(session.sessionId)}`)) return { ok: true, method: "url" };
-      return { ok: await activateBundle(CLAUDE_APP_BUNDLE), method: "activate" };
-    }
-    return jumpToCli(session, `claude --resume ${shQuote(session.sessionId)}`, config);
-  }
+  jump: jumpClaude
 };
 
 // src/core/adapters/codex.ts
-import { existsSync as existsSync3, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
 var CODEX_APP_BUNDLE = "com.openai.codex";
 var CODEX_APP_PATHS = ["/Applications/Codex.app", "/Applications/ChatGPT.app"];
 var CODEX_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit"];
 var THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function read2(path) {
   try {
-    return readFileSync2(path, "utf8");
+    return readFileSync3(path, "utf8");
   } catch {
     return "";
   }
@@ -574,26 +709,29 @@ function findNotify(toml) {
   if (!m) return null;
   let i = m.index + m[0].length;
   let inStr = null;
+  let stringStart = i;
+  const items = [];
   for (; i < toml.length; i++) {
     const c = toml[i];
     if (inStr) {
       if (c === "\\" && inStr === '"') i++;
-      else if (c === inStr) inStr = null;
-    } else if (c === '"' || c === "'") inStr = c;
-    else if (c === "]") break;
-  }
-  const body = toml.slice(m.index + m[0].length, i);
-  const items = [];
-  const re = /"((?:[^"\\]|\\.)*)"|'([^']*)'/g;
-  let im;
-  while (im = re.exec(body)) {
-    if (im[1] !== void 0) {
-      try {
-        items.push(JSON.parse(`"${im[1]}"`));
-      } catch {
-        items.push(im[1]);
+      else if (c === inStr) {
+        const value = toml.slice(stringStart, i + 1);
+        if (inStr === '"') {
+          try {
+            items.push(JSON.parse(value));
+          } catch {
+            items.push(value.slice(1, -1));
+          }
+        } else items.push(value.slice(1, -1));
+        inStr = null;
       }
-    } else items.push(im[2]);
+    } else if (c === '"' || c === "'") {
+      inStr = c;
+      stringStart = i;
+    } else if (c === "#") {
+      while (i < toml.length && toml[i] !== "\n") i++;
+    } else if (c === "]") break;
   }
   let end = i + 1;
   while (end < toml.length && toml[end] !== "\n") end++;
@@ -641,7 +779,14 @@ function parseCodexHook(payload, env, now = Date.now()) {
   const sessionId = s2(payload.session_id) || s2(payload.thread_id) || s2(payload.conversation_id);
   const name = s2(payload.hook_event_name);
   if (!sessionId) return null;
-  const base = { agent: "codex", sessionId, host: hostFromEnv2(env), cwd: s2(payload.cwd), transcriptPath: s2(payload.transcript_path), at: now };
+  const base = {
+    agent: "codex",
+    sessionId,
+    host: hostFromEnv2(env),
+    cwd: s2(payload.cwd),
+    transcriptPath: s2(payload.transcript_path),
+    at: now
+  };
   if (name === "SessionStart") return { ...base, type: "started" };
   if (name === "UserPromptSubmit") return { ...base, type: "progress", title: s2(payload.prompt) };
   return null;
@@ -697,12 +842,27 @@ var codexAdapter = {
     const span = findNotify(toml);
     if (span && span.items.some((x) => x.includes(HOOK_MARKER))) {
       const orig = originalNotify(span.items);
-      changes.push({ path: CODEX_CONFIG, before: toml, after: setNotify(toml, orig.length ? orig : null), summary: "notify", preview: "", previewLang: "toml" });
+      changes.push({
+        path: CODEX_CONFIG,
+        before: toml,
+        after: setNotify(toml, orig.length ? orig : null),
+        summary: "notify",
+        preview: "",
+        previewLang: "toml"
+      });
     }
     const hooksText = read2(CODEX_HOOKS);
     if (hooksText) {
       const file = parseJsonFile(hooksText, CODEX_HOOKS);
-      if (hasOurHooks(file)) changes.push({ path: CODEX_HOOKS, before: hooksText, after: stringify(withoutOurHooks(file)), summary: "hooks", preview: "", previewLang: "json" });
+      if (hasOurHooks(file))
+        changes.push({
+          path: CODEX_HOOKS,
+          before: hooksText,
+          after: stringify(withoutOurHooks(file)),
+          summary: "hooks",
+          preview: "",
+          previewLang: "json"
+        });
     }
     return { changes, notes: [] };
   },
@@ -724,8 +884,8 @@ var codexAdapter = {
 };
 
 // src/core/adapters/custom.ts
-import { existsSync as existsSync4, mkdirSync, readdirSync, readFileSync as readFileSync3, writeFileSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { existsSync as existsSync4, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync4, writeFileSync } from "node:fs";
+import { join as join3 } from "node:path";
 var fill = (tpl, s3) => tpl.split("{sessionId}").join(s3.sessionId).split("{cwd}").join(s3.cwd);
 function manifestAdapter(m) {
   return {
@@ -748,13 +908,13 @@ function loadManifests(dir = ADAPTERS_DIR) {
   const out = [];
   let files = [];
   try {
-    files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    files = readdirSync2(dir).filter((f) => f.endsWith(".json"));
   } catch {
     return out;
   }
   for (const f of files) {
     try {
-      const m = JSON.parse(readFileSync3(join2(dir, f), "utf8"));
+      const m = JSON.parse(readFileSync4(join3(dir, f), "utf8"));
       if (m && typeof m.id === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(m.id) && m.id !== "claude" && m.id !== "codex") out.push(m);
     } catch {
     }
@@ -772,8 +932,8 @@ function getAdapter(id) {
 }
 
 // src/core/config.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync4, writeFileSync as writeFileSync2 } from "node:fs";
-var DEFAULT_DEEPLINK_BASE = "raycast://extensions/fango/agent-inbox";
+import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync5, writeFileSync as writeFileSync2 } from "node:fs";
+var DEFAULT_DEEPLINK_BASE = "raycast://extensions/0xFango/agent-inbox";
 var DEFAULT_CONFIG = {
   language: "zh",
   notifications: true,
@@ -782,7 +942,7 @@ var DEFAULT_CONFIG = {
 };
 function readConfig(path = CONFIG_PATH) {
   try {
-    const raw = JSON.parse(readFileSync4(path, "utf8"));
+    const raw = JSON.parse(readFileSync5(path, "utf8"));
     return { ...DEFAULT_CONFIG, ...raw };
   } catch {
     return { ...DEFAULT_CONFIG };
@@ -803,7 +963,7 @@ function q(v) {
   if (v === null || v === void 0) return "NULL";
   if (typeof v === "boolean") return v ? "1" : "0";
   if (typeof v === "number") return Number.isFinite(v) ? String(Math.trunc(v)) : "NULL";
-  return "'" + String(v).replace(/\u0000/g, "").replace(/'/g, "''") + "'";
+  return "'" + String(v).split("\0").join("").replace(/'/g, "''") + "'";
 }
 var SqliteError = class extends Error {
 };
@@ -943,9 +1103,9 @@ var Store = class {
   }
   /** Subscribe to a session that may only exist as a transcript on disk (history). */
   async subscribeEntry(s3) {
-    const existing = await this.get(s3.agent, s3.sessionId);
-    if (existing) return this.setSubscribed(s3.agent, s3.sessionId, true);
-    await this.put({ ...s3, subscribed: true });
+    await this.run(
+      `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s3, subscribed: true })}) ON CONFLICT(agent, session_id) DO UPDATE SET subscribed=1;`
+    );
   }
   async markHandled(agent, sessionId, at = Date.now()) {
     await this.run(`UPDATE sessions SET handled_at=${q(at)} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
@@ -1015,6 +1175,7 @@ var zh = {
   "action.toggleOff": "\u5173\u95ED",
   "action.copyInstall": "\u590D\u5236\u5B89\u88C5\u547D\u4EE4",
   "action.refresh": "\u5237\u65B0",
+  "action.preferences": "\u6253\u5F00\u6269\u5C55\u8BBE\u7F6E",
   // hosts & agents
   "host.app": "\u684C\u9762\u7AEF",
   "host.cli": "CLI",
@@ -1053,7 +1214,8 @@ var zh = {
   "hud.unsubscribed": "\u5DF2\u53D6\u6D88\u8BA2\u9605 \xB7 {title}",
   "hud.handled": "\u5DF2\u5904\u7406 \xB7 {title}",
   "hud.archived": "\u5DF2\u5F52\u6863 {n} \u4E2A\u5DF2\u5B8C\u6210\u4F1A\u8BDD",
-  "hud.notFound": "\u6CA1\u8BA4\u51FA\u524D\u53F0\u7A97\u53E3\u5BF9\u5E94\u7684\u4F1A\u8BDD",
+  "hud.notFound": "\u65E0\u6CD5\u786E\u5B9A\u5F53\u524D\u4F1A\u8BDD\uFF0C\u8BF7\u5230\u300C\u5168\u90E8\u4F1A\u8BDD\u300D\u9009\u62E9\u5E76\u8BA2\u9605",
+  "hud.focusPermission": "\u65E0\u6CD5\u8BFB\u53D6\u5F53\u524D\u7A97\u53E3\uFF0C\u8BF7\u68C0\u67E5 Raycast \u7684\u8F85\u52A9\u529F\u80FD\u4E0E\u81EA\u52A8\u5316\u6743\u9650",
   "hud.alreadySubscribed": "\u5DF2\u5728\u8BA2\u9605\u4E2D \xB7 {title}",
   "toast.jumpFailed": "\u8DF3\u56DE\u5931\u8D25",
   "toast.copiedId": "\u5DF2\u590D\u5236\u4F1A\u8BDD ID\uFF0C\u8BF7\u5728 App \u91CC\u7C98\u8D34\u6253\u5F00",
@@ -1077,6 +1239,8 @@ var zh = {
   "setup.addAgent": "\u6DFB\u52A0 Agent",
   "setup.notifications": "\u7CFB\u7EDF\u901A\u77E5",
   "setup.notificationsSub": "\u4EC5\u7B49\u8F93\u5165\u65F6",
+  "setup.resumeTerminal": "\u6062\u590D CLI \u4F1A\u8BDD\u7684\u7EC8\u7AEF",
+  "setup.resumeTerminalSub": "\u80FD\u5B9A\u4F4D\u539F\u4F1A\u8BDD\u65F6\u8DF3\u56DE\u539F\u7A97\u53E3\uFF0C\u5426\u5219\u5728\u6240\u9009\u7EC8\u7AEF\u6062\u590D",
   "setup.clickToJump": "\u70B9\u901A\u77E5\u8DF3\u56DE",
   "setup.clickToJumpReady": "terminal-notifier",
   "setup.clickToJumpMissing": "\u672A\u5B89\u88C5 terminal-notifier\uFF0C\u901A\u77E5\u65E0\u6CD5\u70B9\u51FB\u8DF3\u56DE",
@@ -1122,6 +1286,7 @@ var en = {
   "action.toggleOff": "Turn Off",
   "action.copyInstall": "Copy Install Command",
   "action.refresh": "Refresh",
+  "action.preferences": "Open Extension Preferences",
   "host.app": "Desktop",
   "host.cli": "CLI",
   "agent.claude": "Claude",
@@ -1154,7 +1319,8 @@ var en = {
   "hud.unsubscribed": "Unsubscribed \xB7 {title}",
   "hud.handled": "Handled \xB7 {title}",
   "hud.archived": "Archived {n} completed sessions",
-  "hud.notFound": "Couldn't match the front window to a session",
+  "hud.notFound": "Couldn't identify the current session; select it in All Sessions",
+  "hud.focusPermission": "Can't read the window; check Raycast's Accessibility and Automation permissions",
   "hud.alreadySubscribed": "Already subscribed \xB7 {title}",
   "toast.jumpFailed": "Couldn't jump back",
   "toast.copiedId": "Session ID copied \u2014 paste it in the app",
@@ -1176,6 +1342,8 @@ var en = {
   "setup.addAgent": "Add Agent",
   "setup.notifications": "System Notifications",
   "setup.notificationsSub": "Only when waiting for input",
+  "setup.resumeTerminal": "Terminal for CLI Sessions",
+  "setup.resumeTerminalSub": "Focus the original session when possible; otherwise resume in this terminal",
   "setup.clickToJump": "Click to Jump Back",
   "setup.clickToJumpReady": "terminal-notifier",
   "setup.clickToJumpMissing": "terminal-notifier is missing, notifications can't jump back",
@@ -1200,7 +1368,7 @@ function translator(lang) {
 }
 
 // src/core/install.ts
-import { chmodSync, copyFileSync, existsSync as existsSync7, mkdirSync as mkdirSync4, readFileSync as readFileSync5, writeFileSync as writeFileSync3 } from "node:fs";
+import { chmodSync, copyFileSync, existsSync as existsSync7, mkdirSync as mkdirSync4, readFileSync as readFileSync6, writeFileSync as writeFileSync3 } from "node:fs";
 function terminalNotifierPath() {
   for (const p of ["/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier"]) if (existsSync7(p)) return p;
   return void 0;
@@ -1219,10 +1387,26 @@ function sendWaitingNotification(config, s3) {
   const message = s3.summary || " ";
   const tn = terminalNotifierPath();
   if (tn) {
-    detach(tn, ["-title", title, "-subtitle", subtitle, "-message", message, "-sound", "default", "-group", `${s3.agent}:${s3.sessionId}`, "-open", jumpDeeplink(config, s3)]);
+    detach(tn, [
+      "-title",
+      title,
+      "-subtitle",
+      subtitle,
+      "-message",
+      message,
+      "-sound",
+      "default",
+      "-group",
+      `${s3.agent}:${s3.sessionId}`,
+      "-open",
+      jumpDeeplink(config, s3)
+    ]);
     return;
   }
-  detach("/usr/bin/osascript", ["-e", `display notification ${asString(message)} with title ${asString(title)} subtitle ${asString(subtitle)} sound name "Glass"`]);
+  detach("/usr/bin/osascript", [
+    "-e",
+    `display notification ${asString(message)} with title ${asString(title)} subtitle ${asString(subtitle)} sound name "Glass"`
+  ]);
 }
 
 // cli/agent-inbox.ts
@@ -1237,14 +1421,14 @@ function log(msg) {
 }
 function readStdin() {
   try {
-    return readFileSync6(0, "utf8");
+    return readFileSync7(0, "utf8");
   } catch {
     return "";
   }
 }
-function parseJson(text) {
+function parseJson(text2) {
   try {
-    const v = JSON.parse(text);
+    const v = JSON.parse(text2);
     return v && typeof v === "object" ? v : {};
   } catch {
     return {};
@@ -1274,7 +1458,7 @@ async function hook(kind, args) {
   if (!adapter?.parseHook) return;
   const ev = adapter.parseHook(kind, payload, process.env);
   if (!ev) return;
-  if (ev.type !== "tool") ev.locator = await captureLocator(process.env);
+  if (ev.type !== "tool") ev.locator = { ...await captureLocator(process.env), ...ev.locator };
   await record(ev);
 }
 function flag(args, name) {
@@ -1286,8 +1470,10 @@ async function event(args) {
   const sessionId = flag(args, "session");
   const type = flag(args, "type");
   if (!agent || !sessionId || !type || !EVENT_TYPES.includes(type)) {
-    process.stderr.write(`usage: agent-inbox event --agent <id> --session <id> --type <${EVENT_TYPES.join("|")}> [--summary s] [--title t] [--cwd dir] [--host cli|app]
-`);
+    process.stderr.write(
+      `usage: agent-inbox event --agent <id> --session <id> --type <${EVENT_TYPES.join("|")}> [--summary s] [--title t] [--cwd dir] [--host cli|app]
+`
+    );
     process.exitCode = 2;
     return;
   }
@@ -1357,4 +1543,7 @@ async function main() {
 }
 main().catch((e) => {
   log(`fatal: ${e.stack ?? e}`);
+  process.stderr.write(`${e.message ?? e}
+`);
+  process.exitCode = 1;
 });

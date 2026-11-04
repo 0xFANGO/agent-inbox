@@ -1,7 +1,10 @@
-import { getFrontmostApplication, showHUD } from "@raycast/api";
-import { sessionForForeground } from "./core/foreground";
+import { closeMainWindow, getFrontmostApplication, showHUD } from "@raycast/api";
+import { captureForeground, sessionForForeground } from "./core/foreground";
+import { FocusAccessError } from "./core/focused-window";
+import { scanHistory } from "./core/history";
+import { mergeSessions } from "./core/merge";
 import { locale } from "./lib/env";
-import { store } from "./lib/sessions";
+import { allSessions, store } from "./lib/sessions";
 
 /**
  * Hotkey command (suggested ⌃⌥S), no UI: subscribe to the session in the front window.
@@ -12,10 +15,20 @@ export default async function SubscribeCurrent() {
   let bundleId: string | undefined;
   try {
     bundleId = (await getFrontmostApplication()).bundleId;
+    await closeMainWindow();
+    if (bundleId === "com.raycast.macos") bundleId = (await getFrontmostApplication()).bundleId;
   } catch {
     bundleId = undefined;
   }
-  const session = await sessionForForeground(bundleId, await store.all(300));
+  let session;
+  try {
+    const focused = await captureForeground(bundleId);
+    const sessions = mergeSessions(await allSessions(1000), scanHistory({ limit: 400 }));
+    session = await sessionForForeground(focused, sessions);
+  } catch (error) {
+    await showHUD(t(error instanceof FocusAccessError ? "hud.focusPermission" : "hud.notFound"));
+    return;
+  }
   if (!session) {
     await showHUD(t("hud.notFound"));
     return;
@@ -25,6 +38,6 @@ export default async function SubscribeCurrent() {
     await showHUD(t("hud.alreadySubscribed", { title }));
     return;
   }
-  await store.setSubscribed(session.agent, session.sessionId, true);
+  await store.subscribeEntry(session);
   await showHUD(t("hud.subscribed", { title }));
 }

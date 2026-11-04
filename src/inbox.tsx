@@ -22,7 +22,7 @@ import { Config, Session } from "./core/types";
 import { agentIcon, statusDot } from "./components/icons";
 import { SessionDetail } from "./components/SessionDetail";
 import { locale } from "./lib/env";
-import { jumpBack, store } from "./lib/sessions";
+import { activeSessions, jumpBack, store } from "./lib/sessions";
 
 interface JumpContext {
   jump?: { agent: string; sessionId: string };
@@ -37,7 +37,7 @@ const SECTIONS: { key: InboxSection; title: "section.needsInput" | "section.runn
 export default function Inbox(props: LaunchProps<{ launchContext?: JumpContext }>) {
   const { t, config } = locale();
   const [showDetail, setShowDetail] = useState(false);
-  const { data, isLoading, revalidate, mutate } = useCachedPromise(() => store.active(), [], { keepPreviousData: true });
+  const { data, isLoading, revalidate, mutate } = useCachedPromise(activeSessions, [], { keepPreviousData: true });
   const connected = useCachedPromise(async () => allAdapters().some((a) => a.detect().hooked), []);
 
   useConfirmJump(props.launchContext, config, t);

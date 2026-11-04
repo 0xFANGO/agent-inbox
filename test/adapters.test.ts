@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { parseClaudeHook } from "../src/core/adapters/claude";
-import { findNotify, originalNotify, ourNotify, parseCodexNotify, setNotify } from "../src/core/adapters/codex";
-import { hasOurHooks, withOurHooks, withoutOurHooks } from "../src/core/adapters/json";
+import { findNotify, originalNotify, ourNotify, parseCodexHook, parseCodexNotify, setNotify } from "../src/core/adapters/codex";
+import { hasOurHooks, parseJsonFile, withOurHooks, withoutOurHooks } from "../src/core/adapters/json";
 
 const ctx = { node: "/opt/homebrew/bin/node", cli: "/Users/me/.sessions/bin/agent-inbox.mjs" };
 
@@ -81,4 +81,60 @@ test("json hooks merge keeps user hooks and is idempotent", () => {
   assert.equal(once.hooks!.Stop.length, 2);
   assert.ok(hasOurHooks(once));
   assert.deepEqual(withoutOurHooks(once), user);
+});
+
+test("removing and reinstalling hooks preserves user commands in a shared matcher", () => {
+  const userHook = { type: "command", command: "afplay done.aiff" };
+  const ourHook = { type: "command", command: "node /x/agent-inbox.mjs hook claude" };
+  const mixed = { model: "opus", hooks: { Stop: [{ matcher: "*", hooks: [userHook, ourHook] }] } };
+  const original = structuredClone(mixed);
+  const expected = { model: "opus", hooks: { Stop: [{ matcher: "*", hooks: [userHook] }] } };
+  assert.deepEqual(withoutOurHooks(mixed), expected);
+  const reinstalled = withOurHooks(mixed, { Stop: { hooks: [ourHook] } });
+  assert.deepEqual(withoutOurHooks(reinstalled), expected);
+  assert.deepEqual(mixed, original, "the preview must not mutate the input configuration");
+});
+
+test("codex notify ignores comments containing quotes and closing brackets", () => {
+  const toml = `model = "gpt-5"\nnotify = [\n  "node", # legacy "notify" command ]\n  'say #done]',\n  ${JSON.stringify('line\nquote"')},\n]\n\n[profiles.fast]\nnotify = ["keep"]\n`;
+  const original = ["node", "say #done]", 'line\nquote"'];
+  assert.deepEqual(findNotify(toml)!.items, original);
+  const installed = setNotify(toml, ourNotify(ctx, original));
+  assert.ok(installed.endsWith('[profiles.fast]\nnotify = ["keep"]\n'));
+  assert.deepEqual(originalNotify(findNotify(installed)!.items), original);
+  assert.deepEqual(findNotify(setNotify(installed, original))!.items, original);
+});
+
+test("invalid JSON hook config is rejected without silently replacing it", () => {
+  for (const value of ["{", "null", "[]", '"text"']) {
+    assert.throws(() => parseJsonFile(value, "settings.json"), /settings.json is not valid JSON/);
+  }
+  assert.deepEqual(parseJsonFile(" \n", "settings.json"), {});
+});
+
+test("Codex hook start and prompt payloads retain session identity and desktop host", () => {
+  const env = { __CFBundleIdentifier: "com.openai.codex" };
+  const base = { conversation_id: "thread", cwd: "/project", transcript_path: "/rollout.jsonl" };
+  const started = parseCodexHook({ ...base, hook_event_name: "SessionStart" }, env, 10)!;
+  assert.equal(started.sessionId, "thread");
+  assert.equal(started.host, "app");
+  assert.equal(started.transcriptPath, "/rollout.jsonl");
+  assert.equal(started.at, 10);
+  assert.equal(started.type, "started");
+  assert.equal(parseCodexHook({ ...base, hook_event_name: "UserPromptSubmit", prompt: "fix ci" }, env)!.title, "fix ci");
+  assert.equal(parseCodexHook({ ...base, hook_event_name: "Unknown" }, env), null);
+  assert.equal(parseCodexNotify({ type: "unknown", "thread-id": "thread" }, env), null);
+  assert.equal(parseCodexNotify({ type: "agent-turn-complete" }, env), null);
+});
+
+test("Claude handles permission, quota and failure events and ignores subagent completion", () => {
+  const base = { session_id: "s" };
+  assert.equal(
+    parseClaudeHook({ ...base, hook_event_name: "Notification", notification_type: "permission_prompt" }, {})!.attention,
+    "permission",
+  );
+  assert.equal(parseClaudeHook({ ...base, hook_event_name: "Notification", message: "Usage limit reached" }, {})!.type, "quota");
+  assert.equal(parseClaudeHook({ ...base, hook_event_name: "StopFailure", error: "request failed" }, {})!.type, "failed");
+  assert.equal(parseClaudeHook({ ...base, hook_event_name: "SubagentStop", last_assistant_message: "done" }, {}), null);
+  assert.equal(parseClaudeHook({ ...base, hook_event_name: "Notification", notification_type: "auth_success" }, {}), null);
 });

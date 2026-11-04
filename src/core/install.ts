@@ -1,6 +1,6 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { BIN_DIR, CLI_PATH } from "./paths";
+import { CLI_PATH } from "./paths";
 import { run } from "./exec";
 import { InstallPlan } from "./adapters/types";
 
@@ -19,7 +19,7 @@ export async function resolveNode(fallback = process.execPath): Promise<string |
 
 /** Copy the bundled CLI to ~/.sessions/bin so hook paths stay stable across extension updates. */
 export function installCli(source: string, target = CLI_PATH): string {
-  mkdirSync(BIN_DIR, { recursive: true });
+  mkdirSync(dirname(target), { recursive: true });
   const same = existsSync(target) && readFileSync(target, "utf8") === readFileSync(source, "utf8");
   if (!same) copyFileSync(source, target);
   chmodSync(target, 0o755);

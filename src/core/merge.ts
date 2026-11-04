@@ -3,7 +3,7 @@ import { HistoryEntry, Session } from "./types";
 const key = (s: { agent: string; sessionId: string }) => `${s.agent}:${s.sessionId}`;
 
 export function fromHistory(h: HistoryEntry): Session {
-  return { ...h, status: "idle", attention: null, locator: {}, subscribed: false, handledAt: null };
+  return { ...h, status: "idle", attention: null, locator: h.locator ?? {}, subscribed: false, handledAt: null };
 }
 
 /**
@@ -22,6 +22,7 @@ export function mergeSessions(rows: Session[], history: HistoryEntry[]): Session
         summary: existing.summary || h.summary,
         cwd: existing.cwd || h.cwd,
         transcriptPath: existing.transcriptPath || h.transcriptPath,
+        locator: { ...h.locator, ...existing.locator },
       });
   }
   return [...byKey.values()].sort((a, b) => b.updatedAt - a.updatedAt);

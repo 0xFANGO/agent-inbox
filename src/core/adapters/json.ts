@@ -15,14 +15,22 @@ export function parseJsonFile(text: string, path: string): HooksFile {
   throw new Error(`${path} is not valid JSON; fix it before connecting.`);
 }
 
+function isOurCommand(hook: HookEntry["hooks"][number]): boolean {
+  return typeof hook?.command === "string" && hook.command.includes(HOOK_MARKER);
+}
+
 function isOurs(entry: HookEntry): boolean {
-  return Array.isArray(entry?.hooks) && entry.hooks.some((h) => typeof h?.command === "string" && h.command.includes(HOOK_MARKER));
+  return Array.isArray(entry?.hooks) && entry.hooks.some(isOurCommand);
 }
 
 export function withoutOurHooks(file: HooksFile): HooksFile {
   const hooks: Record<string, HookEntry[]> = {};
   for (const [event, entries] of Object.entries(file.hooks ?? {})) {
-    const kept = (Array.isArray(entries) ? entries : []).filter((e) => !isOurs(e));
+    const kept = (Array.isArray(entries) ? entries : []).flatMap((entry) => {
+      if (!isOurs(entry)) return [entry];
+      const remaining = entry.hooks.filter((hook) => !isOurCommand(hook));
+      return remaining.length ? [{ ...entry, hooks: remaining }] : [];
+    });
     if (kept.length) hooks[event] = kept;
   }
   const next: HooksFile = { ...file };

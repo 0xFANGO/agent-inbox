@@ -75,7 +75,7 @@ async function hook(kind: string, args: string[]) {
   if (!adapter?.parseHook) return;
   const ev = adapter.parseHook(kind, payload, process.env);
   if (!ev) return;
-  if (ev.type !== "tool") ev.locator = await captureLocator(process.env);
+  if (ev.type !== "tool") ev.locator = { ...(await captureLocator(process.env)), ...ev.locator };
   await record(ev);
 }
 
@@ -163,4 +163,6 @@ async function main() {
 
 main().catch((e) => {
   log(`fatal: ${(e as Error).stack ?? e}`);
+  process.stderr.write(`${(e as Error).message ?? e}\n`);
+  process.exitCode = 1;
 });

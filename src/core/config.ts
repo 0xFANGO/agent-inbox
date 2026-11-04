@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { CONFIG_PATH } from "./paths";
 import { Config } from "./types";
 
-export const DEFAULT_DEEPLINK_BASE = "raycast://extensions/fango/agent-inbox";
+export const DEFAULT_DEEPLINK_BASE = "raycast://extensions/0xFango/agent-inbox";
 
 export const DEFAULT_CONFIG: Config = {
   language: "zh",
