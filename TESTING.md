@@ -34,3 +34,21 @@ Three screenshots use fictional sessions, a consistent dark theme and background
 The submission is prepared directly under `extensions/agent-inbox` in a Raycast extensions checkout. Only extension source, tests, runtime assets, screenshots, and supporting documentation are included; local development skills, internal investigation notes, dependencies, and generated validation files are excluded from the commit. Repository and support links target the public upstream repository, and the submission follows its security-reporting policy.
 
 The prepared source passed a fresh `npm ci`, `npm run check`, and `npm run lint`. The installable bundle was also verified with `npm run bundle`. Local documentation/media links, four bundled commands, the helper CLI, and the license were checked. Store publication has not taken place.
+
+## PR #33134 review fixes — 2026-11-04
+
+- `npm run check`: 161 tests passed, no failures or skips; TypeScript, ESLint, Prettier and CLI/Raycast builds passed on the Store submission checkout.
+- `npm run lint`: Raycast manifest, icon, metadata and code checks passed.
+- Added regression coverage for terminal reuse and stale cached locators, process/PID identity, live questions during recovery (including partial and truncated files), indexing refresh/cancellation, and AppleScript argument isolation.
+- Verified a literal AppleScript argument round trip using the system `osascript`; no system notifications were sent by these tests.
+- The updated Raycast UI, real terminal focus and notification-click workflows have not received a new live check. Earlier manual results below/above describe the original build.
+- After reconnecting hooks, a new hook event or new session refreshes terminal process identity; older unverified locators use the resume fallback.
+
+## PR #33134 follow-up review fixes — 2026-11-04
+
+- The Store checkout passed `npm run check`: 165 tests, no failures or skips, plus TypeScript, ESLint, Prettier and CLI/Raycast builds. `npm run lint`, direct `ray build -e dist`, and `npm run bundle` also passed.
+- Both subscription entry points were exercised with a blocked configuration directory; each reports the underlying error without closing Raycast or claiming success.
+- Host API stubs verify that Raycast catalog reads and title refreshes use `executeSQL`, including the legacy-index fallback when it rejects. They do not constitute a live Raycast database-permission test.
+- A copied CLI runs help and records/reads an event outside the repository without Raycast or `node_modules`. The packaged CLI matches the generated asset byte for byte, and all four commands are present in the `.rayext` archive.
+- No new native UI, terminal-focus, notification-delivery or notification-click checks were performed for this follow-up.
+- A fresh-source CI run exposed reliance on Raycast's untracked generated `Preferences` declaration. The extension now uses the existing shared `ExtensionPreferences` type. A fresh source export without `raycast-env.d.ts` passed `npm ci` and `npm run check`; its generated CLI is unchanged.

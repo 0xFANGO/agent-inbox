@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { ExtensionPreferences, syncPreferences } from "../core/config";
 import { installCli } from "../core/install";
 import { CLI_PATH } from "../core/paths";
-import { translator, Translator } from "../core/messages";
 import { Config } from "../core/types";
 
 /** Mirror native preferences for the hook CLI and background collector. */
@@ -27,11 +26,11 @@ function refreshCli() {
 
 let refreshed = false;
 
-export function locale(): { t: Translator; config: Config } {
+export function extensionConfig(): Config {
   const config = syncConfig();
   if (!refreshed) {
     refreshed = true;
     refreshCli();
   }
-  return { t: translator(), config };
+  return config;
 }

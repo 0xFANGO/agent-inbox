@@ -28,6 +28,14 @@ Tests use temporary databases and configuration. They do not install real hooks 
 - `assets/agent-inbox.mjs` is a tracked generated file. Run `npm run build:cli` after changing core or CLI code; do not edit the bundle by hand.
 - See [integration interfaces](docs/integrations.md) for sources, state contracts, and notification channels.
 
+### Why the CLI bundle is committed
+
+Hooks and the LaunchAgent collector run outside Raycast, so they need a standalone program. esbuild packages the TypeScript entry point and shared core into one ESM file that can be copied to `~/.sessions/bin` without shipping `node_modules`. The `.mjs` extension lets Node recognize ESM without a neighboring `package.json`.
+
+Raycast's Store builds use [`ray build`](https://developers.raycast.com/information/developer-tools/cli), which does not run our `build:cli` npm script. Keep the generated asset in the Store submission. CI checks that it matches the source; GitHub marks it as generated so reviews can focus on TypeScript. Tests also run a copied bundle outside the repository.
+
+Keep `src/core` and `cli` independent of `@raycast/api` and `@raycast/utils`. Raycast-specific services belong in `src/lib`: Codex catalog reads inject `executeSQL` there, while the CLI uses read-only system `sqlite3`. Both share schema detection, parsing, and index fallback logic.
+
 ## Reporting a problem
 
 Use [Issues](https://github.com/0xFANGO/agent-inbox/issues) for questions, bugs, and feature requests. Include:

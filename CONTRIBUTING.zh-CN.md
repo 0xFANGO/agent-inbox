@@ -28,6 +28,14 @@ npm run dev
 - `assets/agent-inbox.mjs` 为受版本控制的生成文件；修改核心或 CLI 后运行 `npm run build:cli`，不要手改 bundle。
 - 新来源、状态契约和通知渠道的扩展方式见 [接口说明](docs/integrations.zh-CN.md)。
 
+### 为什么提交 CLI 打包文件
+
+Hook 和 LaunchAgent 采集器在 Raycast 外运行，需要独立程序。esbuild 将 TypeScript 入口和共享核心打包为单个 ESM 文件，复制到 `~/.sessions/bin` 后无需附带 `node_modules`。`.mjs` 扩展名让 Node 在旁边没有 `package.json` 时也能识别 ESM。
+
+Raycast 商店构建使用 [`ray build`](https://developers.raycast.com/information/developer-tools/cli)，不会执行我们的 `build:cli` npm 脚本，因此商店提交中需要保留生成文件。CI 检查产物与源码一致；GitHub 将其标记为生成文件，方便集中审查 TypeScript。测试还会把打包文件复制到仓库外验证独立运行。
+
+`src/core` 和 `cli` 不依赖 `@raycast/api` 或 `@raycast/utils`。Raycast 专用服务放在 `src/lib`：Codex 目录读取在这里注入 `executeSQL`，CLI 则使用只读的系统 `sqlite3`，两者共享表结构识别、解析和索引回退逻辑。
+
 ## 报告问题
 
 使用 [Issues](https://github.com/0xFANGO/agent-inbox/issues) 提交使用问题、Bug 或功能建议。请附上：

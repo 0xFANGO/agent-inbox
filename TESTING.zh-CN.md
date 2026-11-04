@@ -34,3 +34,21 @@
 提交内容直接放在 Raycast extensions 工作副本的 `extensions/agent-inbox` 目录。提交只包含扩展源码、测试、运行时素材、截图及配套文档；本地开发技能、内部调查笔记、依赖和验收生成文件均不纳入提交。仓库与支持链接指向官方公开仓库，安全报告遵循官方政策。
 
 准备好的源码全新执行 `npm ci`、`npm run check` 和 `npm run lint`，均通过；另已通过 `npm run bundle` 核对可安装包。本地文档/图片链接、四个命令、辅助 CLI 和许可证均已检查。目前尚未在商店发布。
+
+## PR #33134 review 修复 — 2026-11-04
+
+- 商店提交目录执行 `npm run check`：161 项测试通过，无失败或跳过；类型、ESLint、Prettier、CLI 和 Raycast 构建通过。
+- `npm run lint` 的 manifest、图标、metadata 和代码检查通过。
+- 新增终端复用、过期缓存定位、进程身份、恢复期间新请求（含半行和截断文件）、索引刷新与取消、AppleScript 参数隔离的回归覆盖。
+- 使用系统 `osascript` 验证了字符串参数往返，测试未发送真实系统通知。
+- 更新后的 Raycast 界面、真实终端聚焦与通知点击暂未重新实测；旧实测记录仅对应原版本。
+- 重新接入 hooks 后，触发新事件或启动新会话以刷新进程身份；旧的未验证定位会走恢复会话路径。
+
+## PR #33134 第二轮 review 修复 — 2026-11-04
+
+- 商店提交目录通过 `npm run check`：165 项测试，无失败或跳过，类型、ESLint、Prettier、CLI 与 Raycast 构建均通过；另通过 `npm run lint`、直接执行 `ray build -e dist` 和 `npm run bundle`。
+- 用文件阻挡配置目录创建，验证两个订阅入口都显示具体错误，不关闭 Raycast，也不报告订阅成功。
+- 通过宿主 API 替身验证 Raycast 的 Codex 目录读取和标题刷新使用 `executeSQL`，并覆盖查询失败时回退旧索引；这不代表已在原生 Raycast 内验证数据库权限。
+- 将 CLI 复制到仓库外，在没有 Raycast 和 `node_modules` 的目录中执行帮助与事件写入/读取。安装包内 CLI 与生成文件逐字节一致，四个命令均包含在 `.rayext` 中。
+- 本轮未新增原生界面、真实终端聚焦、通知送达或通知点击实测。
+- 干净环境 CI 发现扩展依赖未提交的 Raycast 生成类型 `Preferences`，现已改用已有的共享类型 `ExtensionPreferences`。不含 `raycast-env.d.ts` 的全新源码副本通过 `npm ci` 和 `npm run check`，CLI 产物保持一致。
