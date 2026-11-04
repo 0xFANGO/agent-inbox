@@ -1,7 +1,7 @@
 import { exec, q } from "./sqlite";
 import { DB_PATH } from "./paths";
 import { applyEvent, Transition } from "./status";
-import { AgentEvent, Attention, Host, Locator, Session, Status } from "./types";
+import { AgentEvent, Attention, Host, Locator, Session, SessionState, Status } from "./types";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sessions (
@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   started_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   transcript_path TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL DEFAULT '{}',
+  revision INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (agent, session_id)
 );
 CREATE INDEX IF NOT EXISTS sessions_updated ON sessions(updated_at DESC);
@@ -31,6 +33,13 @@ CREATE TABLE IF NOT EXISTS events (
   at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS events_session ON events(agent, session_id, at DESC);
+CREATE TABLE IF NOT EXISTS event_receipts (agent TEXT, session_id TEXT, event_key TEXT, PRIMARY KEY(agent, session_id, event_key));
+CREATE TABLE IF NOT EXISTS notification_outbox (
+  id TEXT NOT NULL, channel TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL DEFAULT 0, lease_until INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(id, channel)
+);
+CREATE TABLE IF NOT EXISTS source_cursors (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `;
 
 interface Row {
@@ -48,10 +57,12 @@ interface Row {
   started_at: number;
   updated_at: number;
   transcript_path: string;
+  state: string;
+  revision: number;
 }
 
 const COLUMNS =
-  "agent, session_id, host, title, cwd, status, attention, summary, locator, subscribed, handled_at, started_at, updated_at, transcript_path";
+  "agent, session_id, host, title, cwd, status, attention, summary, locator, subscribed, handled_at, started_at, updated_at, transcript_path, state, revision";
 
 function fromRow(r: Row): Session {
   let locator: Locator = {};
@@ -75,7 +86,25 @@ function fromRow(r: Row): Session {
     startedAt: r.started_at,
     updatedAt: r.updated_at,
     transcriptPath: r.transcript_path ?? "",
+    state: parseState(r.state),
+    revision: r.revision ?? 0,
   };
+}
+
+function parseState(value: string): SessionState | undefined {
+  try {
+    const state = JSON.parse(value);
+    return state && typeof state.at === "number" && Array.isArray(state.pending) && Array.isArray(state.resolved) ? state : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export interface QueuedNotification {
+  id: string;
+  channel: string;
+  payload: string;
+  attempts: number;
 }
 
 function values(s: Session): string {
@@ -94,6 +123,8 @@ function values(s: Session): string {
     q(s.startedAt),
     q(s.updatedAt),
     q(s.transcriptPath),
+    q(JSON.stringify(s.state ?? {})),
+    q(s.revision ?? 0),
   ].join(", ");
 }
 
@@ -103,10 +134,33 @@ export class Store {
 
   private init(): Promise<void> {
     if (!this.ready) {
-      this.ready = exec(this.path, "PRAGMA journal_mode=WAL;").then(() => exec(this.path, SCHEMA).then(() => undefined));
+      this.ready = this.initialize();
       this.ready.catch(() => (this.ready = null));
     }
     return this.ready;
+  }
+
+  private async initialize(): Promise<void> {
+    await exec(this.path, "PRAGMA journal_mode=WAL;");
+    await exec(this.path, SCHEMA);
+    for (const [name, declaration] of [
+      ["state", "TEXT NOT NULL DEFAULT '{}'"],
+      ["revision", "INTEGER NOT NULL DEFAULT 0"],
+    ]) {
+      const columns = await exec<{ name: string }>(this.path, "PRAGMA table_info(sessions);");
+      if (columns.some((column) => column.name === name)) continue;
+      try {
+        await exec(this.path, `ALTER TABLE sessions ADD COLUMN ${name} ${declaration};`);
+      } catch (error) {
+        const current = await exec<{ name: string }>(this.path, "PRAGMA table_info(sessions);");
+        if (!current.some((column) => column.name === name)) throw error;
+      }
+    }
+    // Previous releases inferred completion from Stop. Preserve subscriptions/handled state.
+    await exec(
+      this.path,
+      "UPDATE sessions SET status='ready', revision=revision+1 WHERE agent IN ('claude','codex') AND status='done' AND state='{}';",
+    );
   }
 
   private async run<T = Row>(sql: string): Promise<T[]> {
@@ -131,25 +185,85 @@ export class Store {
   }
 
   async put(s: Session): Promise<void> {
-    await this.run(`INSERT OR REPLACE INTO sessions (${COLUMNS}) VALUES (${values(s)});`);
+    await this.run(
+      `INSERT INTO sessions (${COLUMNS}) VALUES (${values(s)}) ON CONFLICT(agent,session_id) DO UPDATE SET (${COLUMNS})=(${values(s)}), revision=sessions.revision+1;`,
+    );
   }
 
   /** Apply an adapter event through the state machine and persist it. */
-  async record(ev: AgentEvent): Promise<Transition | null> {
-    const prev = await this.get(ev.agent, ev.sessionId);
-    const t = applyEvent(prev, ev);
-    if (!t) return null;
+  async record(ev: AgentEvent, options: { channels?: string[]; silent?: boolean } = {}): Promise<Transition | null> {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const prev = await this.get(ev.agent, ev.sessionId);
+      const receipt = `agent=${q(ev.agent)} AND session_id=${q(ev.sessionId)} AND event_key=${q(ev.eventId)}`;
+      if (ev.eventId && (await this.run(`SELECT 1 FROM event_receipts WHERE ${receipt};`)).length) return null;
+      const t = applyEvent(prev, ev);
+      if (!t) return null;
+      t.next.revision = (prev?.revision ?? -1) + 1;
+      const allowed = ev.eventId ? ` AND NOT EXISTS (SELECT 1 FROM event_receipts WHERE ${receipt})` : "";
+      const write = prev
+        ? `UPDATE sessions SET (${COLUMNS})=(${values(t.next)}) WHERE agent=${q(ev.agent)} AND session_id=${q(ev.sessionId)} AND revision=${q(prev.revision ?? 0)}${allowed};`
+        : `INSERT OR IGNORE INTO sessions (${COLUMNS}) SELECT ${values(t.next)} WHERE 1${allowed};`;
+      const notificationId = `${ev.agent}:${ev.sessionId}:${t.next.revision}`;
+      const enqueue =
+        t.notify && !options.silent
+          ? [...new Set(options.channels ?? [])]
+              .map(
+                (channel) =>
+                  `INSERT OR IGNORE INTO notification_outbox (id,channel,payload) SELECT ${q(notificationId)},${q(channel)},${q(JSON.stringify(t.next))} WHERE (SELECT n FROM applied)=1;`,
+              )
+              .join("")
+          : "";
+      const result = await this.run<{ n: number }>(
+        `BEGIN IMMEDIATE; ${write} CREATE TEMP TABLE applied AS SELECT changes() AS n;` +
+          `INSERT INTO events (agent,session_id,type,summary,at) SELECT ${q(ev.agent)},${q(ev.sessionId)},${q(ev.type)},${q(t.next.summary)},${q(ev.at)} WHERE (SELECT n FROM applied)=1;` +
+          (ev.eventId
+            ? `INSERT OR IGNORE INTO event_receipts SELECT ${q(ev.agent)},${q(ev.sessionId)},${q(ev.eventId)} WHERE (SELECT n FROM applied)=1;`
+            : "") +
+          enqueue +
+          `DELETE FROM events WHERE at < ${q(ev.at - 30 * 24 * 3600 * 1000)}; SELECT n FROM applied; COMMIT;`,
+      );
+      if (result[0]?.n === 1) return t;
+    }
+    throw new Error("Concurrent session updates did not settle; event was not recorded");
+  }
+
+  async subscribed(): Promise<Session[]> {
+    return (await this.run("SELECT " + COLUMNS + " FROM sessions WHERE subscribed=1;")).map(fromRow);
+  }
+
+  async attachTranscript(agent: string, sessionId: string, path: string): Promise<void> {
     await this.run(
-      `BEGIN; INSERT OR REPLACE INTO sessions (${COLUMNS}) VALUES (${values(t.next)});` +
-        `INSERT INTO events (agent, session_id, type, summary, at) VALUES (${q(ev.agent)}, ${q(ev.sessionId)}, ${q(ev.type)}, ${q(t.next.summary)}, ${q(ev.at)});` +
-        `DELETE FROM events WHERE at < ${q(ev.at - 30 * 24 * 3600 * 1000)}; COMMIT;`,
+      `UPDATE sessions SET transcript_path=${q(path)}, revision=revision+1 WHERE agent=${q(agent)} AND session_id=${q(sessionId)} AND transcript_path<>${q(path)};`,
     );
-    return t;
+  }
+
+  async readCursor<T>(key: string): Promise<T | undefined> {
+    const rows = await this.run<{ value: string }>(`SELECT value FROM source_cursors WHERE key=${q(key)};`);
+    return rows[0] ? (JSON.parse(rows[0].value) as T) : undefined;
+  }
+
+  async writeCursor(key: string, value: unknown): Promise<void> {
+    await this.run(`INSERT OR REPLACE INTO source_cursors VALUES (${q(key)},${q(JSON.stringify(value))});`);
+  }
+
+  async claimNotifications(now = Date.now()): Promise<QueuedNotification[]> {
+    return this.run<QueuedNotification>(
+      `UPDATE notification_outbox SET lease_until=${q(now + 60000)} WHERE rowid IN (SELECT rowid FROM notification_outbox WHERE next_attempt_at<=${q(now)} AND lease_until<=${q(now)} LIMIT 1) RETURNING id,channel,payload,attempts;`,
+    );
+  }
+
+  async finishNotification(job: QueuedNotification, delivered: boolean, now = Date.now()): Promise<void> {
+    const where = `id=${q(job.id)} AND channel=${q(job.channel)}`;
+    await this.run(
+      delivered
+        ? `DELETE FROM notification_outbox WHERE ${where};`
+        : `UPDATE notification_outbox SET attempts=attempts+1,lease_until=0,next_attempt_at=${q(now + Math.min(3600000, 1000 * 2 ** Math.min(job.attempts, 12)))} WHERE ${where};`,
+    );
   }
 
   async setSubscribed(agent: string, sessionId: string, subscribed: boolean): Promise<void> {
     await this.run(
-      `UPDATE sessions SET subscribed=${q(subscribed)}${subscribed ? ", handled_at=NULL" : ""} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`,
+      `UPDATE sessions SET revision=revision+1, subscribed=${q(subscribed)}${subscribed ? ", handled_at=NULL" : ""} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`,
     );
   }
 
@@ -170,16 +284,16 @@ export class Store {
         : "";
     await this.run(
       `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s, subscribed: true, handledAt: null })}) ` +
-        `ON CONFLICT(agent, session_id) DO UPDATE SET subscribed=1, handled_at=NULL${identity};`,
+        `ON CONFLICT(agent, session_id) DO UPDATE SET revision=sessions.revision+1, subscribed=1, handled_at=NULL${identity};`,
     );
   }
 
   async markHandled(agent: string, sessionId: string, at = Date.now()): Promise<void> {
-    await this.run(`UPDATE sessions SET handled_at=${q(at)} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
+    await this.run(`UPDATE sessions SET revision=revision+1, handled_at=${q(at)} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
   }
 
   async unmarkHandled(agent: string, sessionId: string): Promise<void> {
-    await this.run(`UPDATE sessions SET handled_at=NULL WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
+    await this.run(`UPDATE sessions SET revision=revision+1, handled_at=NULL WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
   }
 
   /** "Archive Completed": every finished session leaves the inbox. */
@@ -193,7 +307,7 @@ export class Store {
       ? `status IN ('idle','done') AND (${snapshots.map((s) => `(agent=${q(s.agent)} AND session_id=${q(s.sessionId)} AND updated_at=${q(s.updatedAt)})`).join(" OR ")})`
       : "status='done'";
     const rows = await this.run<{ n: number }>(
-      `UPDATE sessions SET handled_at=${q(at)} WHERE subscribed=1 AND ${state} AND handled_at IS NULL; SELECT changes() AS n;`,
+      `UPDATE sessions SET revision=revision+1, handled_at=${q(at)} WHERE subscribed=1 AND ${state} AND handled_at IS NULL; SELECT changes() AS n;`,
     );
     return rows[0]?.n ?? 0;
   }

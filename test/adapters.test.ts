@@ -41,10 +41,10 @@ test("codex notify payload", () => {
     {},
     5,
   )!;
-  assert.equal(e.type, "needs_input");
+  assert.equal(e.type, "stopped");
   assert.equal(e.attention, "question");
   assert.equal(e.title, "fix ci");
-  assert.equal(e.host, "cli");
+  assert.equal(e.host, undefined, "sparse notify must not relabel an existing desktop session");
   assert.equal(
     parseCodexNotify(
       { type: "agent-turn-complete", "thread-id": "t", "last-assistant-message": "Pushed." },
@@ -66,7 +66,7 @@ test("claude hook payloads", () => {
   );
   const perm = parseClaudeHook({ ...base, hook_event_name: "Notification", message: "Claude needs your permission to use Bash" }, {})!;
   assert.equal(perm.attention, "permission");
-  assert.equal(parseClaudeHook({ ...base, hook_event_name: "Stop", last_assistant_message: "要不要继续？" }, {})!.type, "needs_input");
+  assert.equal(parseClaudeHook({ ...base, hook_event_name: "Stop", last_assistant_message: "要不要继续？" }, {})!.attention, "question");
   assert.equal(parseClaudeHook({ ...base, hook_event_name: "Stop", last_assistant_message: "完成了。" }, {})!.type, "stopped");
   assert.equal(parseClaudeHook({ ...base, hook_event_name: "SessionStart" }, { CLAUDE_CODE_ENTRYPOINT: "claude-desktop" })!.host, "app");
   assert.equal(parseClaudeHook({ hook_event_name: "Stop" }, {}), null);

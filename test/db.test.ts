@@ -29,7 +29,8 @@ test("record, subscribe, handle, archive", async (context) => {
 
   const t = await store.record({ agent: "claude", sessionId: "a", type: "needs_input", at: 3 });
   assert.equal(t!.notify, true);
-  await store.record({ agent: "claude", sessionId: "a", type: "stopped", summary: "done", at: 4 });
+  await store.record({ agent: "claude", sessionId: "a", type: "progress", at: 4 });
+  await store.record({ agent: "claude", sessionId: "a", type: "completed", summary: "done", at: 4 });
   assert.equal((await store.active()).length, 2);
 
   assert.equal(await store.archiveDone(10), 1);
@@ -139,7 +140,7 @@ test("a matched desktop window persists corrected identity without overwriting c
 test("resubscribing restores handled sessions and archive only affects subscriptions", async (t) => {
   const store = tmp(t);
   for (const sessionId of ["subscribed", "unsubscribed"]) {
-    await store.record({ agent: "claude", sessionId, type: "stopped", at: 1 });
+    await store.record({ agent: "claude", sessionId, type: "completed", at: 1 });
   }
   await store.setSubscribed("claude", "subscribed", true);
   assert.equal(await store.archiveDone(2), 1);

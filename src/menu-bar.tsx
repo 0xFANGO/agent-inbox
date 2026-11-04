@@ -1,6 +1,6 @@
 import { Color, Icon, launchCommand, LaunchType, MenuBarExtra } from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
-import { rowTime } from "./core/format";
+import { rowTime, statusLabel } from "./core/format";
 import { groupInbox, waitingCount } from "./core/status";
 import { agentIcon } from "./components/icons";
 import { locale } from "./lib/env";
@@ -40,7 +40,7 @@ export default function MenuBar() {
                   key={`${s.agent}:${s.sessionId}`}
                   icon={agentIcon(s.agent)}
                   title={s.title || s.sessionId}
-                  subtitle={rowTime(s, t)}
+                  subtitle={`${statusLabel(s, t)} · ${rowTime(s, t)}`}
                   onAction={() => jumpBack(s, config, t)}
                 />
               ))}

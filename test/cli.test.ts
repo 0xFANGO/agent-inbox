@@ -47,7 +47,7 @@ test("hook CLI writes events into the database (built bundle)", (t) => {
   assert.equal(s.locator.tmuxPane, "%7");
   assert.equal(s.locator.tmuxSocket, "/tmp/tmux-501/default");
   assert.equal(s.locator.bundleId, "com.mitchellh.ghostty");
-  assert.equal(rows.find((r: { sessionId: string }) => r.sessionId === "t-9").status, "done");
+  assert.equal(rows.find((r: { sessionId: string }) => r.sessionId === "t-9").status, "ready");
   assert.equal(rows.find((r: { sessionId: string }) => r.sessionId === "x1").agent, "t3code");
 
   let log = "";

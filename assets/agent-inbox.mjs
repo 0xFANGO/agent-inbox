@@ -1,32 +1,386 @@
 #!/usr/bin/env node
 
 // cli/agent-inbox.ts
-import { appendFileSync, mkdirSync as mkdirSync5, readFileSync as readFileSync7 } from "node:fs";
+import { appendFileSync, mkdirSync as mkdirSync6, readFileSync as readFileSync8 } from "node:fs";
+
+// src/core/sources/locate.ts
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+function findTranscript(root, sessionId, codex = false) {
+  if (!/^[A-Za-z0-9_-]+$/.test(sessionId)) return void 0;
+  const matches = [];
+  function visit(directory, depth) {
+    try {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory() && depth < 4) visit(path, depth + 1);
+        else if (entry.isFile() && (codex ? entry.name.endsWith(`-${sessionId}.jsonl`) : entry.name === `${sessionId}.jsonl`))
+          matches.push(path);
+      }
+    } catch {
+    }
+  }
+  visit(root, 0);
+  return matches.length === 1 ? matches[0] : void 0;
+}
+
+// src/core/status.ts
+var TITLE_MAX = 80;
+function toTitle(text2) {
+  if (!text2) return "";
+  const line = text2.replace(/<[^>]+>/g, " ").split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+  if (!line) return "";
+  const clean = line.replace(/\s+/g, " ").replace(/^[#>*\-\s]+/, "");
+  return clean.length > TITLE_MAX ? clean.slice(0, TITLE_MAX - 1) + "\u2026" : clean;
+}
+function lastSentence(text2, max = 240) {
+  if (!text2) return "";
+  const flat = text2.replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim();
+  if (!flat) return "";
+  if (flat.length <= max) return flat;
+  return "\u2026" + flat.slice(flat.length - max + 1);
+}
+function endsWithQuestion(text2) {
+  if (!text2) return false;
+  const t = text2.replace(/```[\s\S]*?```/g, "").trim().replace(/[\s*_`)"'」』）]+$/u, "");
+  return /[?？]$/u.test(t);
+}
+function asksForInput(text2) {
+  const value = (text2 ?? "").replace(/```[\s\S]*?```/g, "").trim();
+  const tail = value.split(/\n\s*\n/).slice(-2).join("\n").split(/\r?\n/).filter((line) => !/^\s*[>|]/.test(line)).map((line) => line.trim().replace(/^(?:[-*]\s+|\d+[.)]\s+)?(?:\*\*)?/, "")).join("\n");
+  return endsWithQuestion(tail) || /(?:^|[。！.!]\s*|\n)(?:(?:请|需要你|等你|等待你).{0,16}(?:确认|选择|回复|回答|授权|提供|输入)|(?:是否|要不要|你希望|您希望)[^\n]*[?？]|(?:please (?:confirm|choose|select|reply|provide)|waiting for (?:your|user) (?:input|approval|response)|(?:would you|shall I|should I)[^\n]*\?))/iu.test(
+    tail
+  );
+}
+function applyEvent(prev, ev) {
+  if (!Number.isFinite(ev.at) || ev.at < 0) return null;
+  const previous = prev?.state ?? {
+    phase: prev?.status === "needs_input" ? "running" : prev?.status ?? "idle",
+    at: prev && !["idle", "ready"].includes(prev.status) && !ev.snapshotComplete ? prev.updatedAt : 0,
+    source: "legacy",
+    pending: prev?.status === "needs_input" ? [{ id: "legacy", attention: prev.attention ?? "input", at: prev.updatedAt, inferred: true }] : [],
+    resolved: []
+  };
+  const requestLifecycle = !!ev.requestIds?.length && ["needs_input", "resolved", "tool"].includes(ev.type);
+  if (ev.at < previous.at && ev.type !== "snapshot" && !requestLifecycle) return null;
+  const startsTurn = ev.type === "progress" || ev.type === "snapshot" && (ev.snapshot?.turnStartedAt ?? 0) > previous.at;
+  const otherTurn = !!ev.turnId && !!previous.turnId && ev.turnId !== previous.turnId && !startsTurn;
+  if (otherTurn && !requestLifecycle && ev.type !== "snapshot") return null;
+  if (ev.source === "notify" && previous.turnId && !ev.turnId && ev.type === "stopped") return null;
+  const state = { ...previous, pending: [...previous.pending], resolved: [...previous.resolved] };
+  const ids = ev.requestIds ?? [];
+  switch (ev.type) {
+    case "snapshot": {
+      const observed = ev.snapshot;
+      if (ev.snapshotComplete && !prev?.state) state.pending = [];
+      if (!observed) return null;
+      state.resolved = [.../* @__PURE__ */ new Set([...state.resolved, ...observed.resolved])].slice(-256);
+      state.pending = state.pending.filter((request) => !state.resolved.includes(request.id));
+      const relevant = observed.pending.filter(
+        (request) => (!request.inferred || request.at >= (previous.turnStartedAt ?? 0)) && !state.resolved.includes(request.id)
+      );
+      if (ev.at < previous.at || otherTurn) {
+        for (const request of relevant) if (!state.pending.some((r) => r.id === request.id)) state.pending.push(request);
+      } else {
+        state.phase = observed.phase;
+        state.turnId = observed.turnId ?? state.turnId;
+        state.turnStartedAt = observed.turnStartedAt ?? state.turnStartedAt;
+        state.pending = state.pending.filter(
+          (r) => !state.resolved.includes(r.id) && (!r.inferred || r.at >= (observed.turnStartedAt ?? 0))
+        );
+        for (const request of relevant) if (!state.pending.some((r) => r.id === request.id)) state.pending.push(request);
+      }
+      break;
+    }
+    case "started":
+      break;
+    case "progress":
+      state.phase = "running";
+      state.pending = state.pending.filter((request) => !request.inferred);
+      state.turnId = ev.turnId;
+      state.turnStartedAt = ev.at;
+      break;
+    case "tool":
+    case "resolved": {
+      const matched = state.pending.filter((request) => ids.includes(request.id));
+      state.pending = state.pending.filter((request) => !ids.includes(request.id));
+      state.resolved = [.../* @__PURE__ */ new Set([...state.resolved, ...ids])].slice(-256);
+      if (ev.type === "tool" && ev.at >= previous.at && (!ev.turnId || !previous.turnId || ev.turnId === previous.turnId))
+        state.phase = "running";
+      else if (!matched.length && !ids.length) return null;
+      break;
+    }
+    case "needs_input":
+    case "failed":
+    case "quota":
+    case "interrupted": {
+      const attention2 = ev.type === "needs_input" ? ev.attention ?? "input" : ev.type;
+      if (!ids.length && state.pending.some((request) => !request.inferred && request.attention === attention2)) break;
+      if (ids.length) state.pending = state.pending.filter((request) => !request.inferred || request.attention !== attention2);
+      const requestIds2 = ids.length ? ids : [`hint:${attention2}`];
+      for (const id of requestIds2) {
+        if (state.resolved.includes(id) || state.pending.some((request) => request.id === id)) continue;
+        state.pending.push({ id, attention: attention2, at: ev.at, turnId: ev.turnId, inferred: ev.inferred ?? !ids.length });
+      }
+      if (ev.type !== "needs_input") state.phase = "unknown";
+      break;
+    }
+    case "stopped":
+      state.phase = "ready";
+      if (ev.attention === "question" && state.pending.length === 0) {
+        state.pending.push({ id: "hint:question", attention: "question", at: ev.at, turnId: ev.turnId, inferred: true });
+      }
+      break;
+    case "completed":
+      state.phase = "done";
+      break;
+    case "ended":
+      if (state.phase === "running") state.phase = "unknown";
+      break;
+  }
+  state.at = Math.max(previous.at, ev.at);
+  state.source = ev.source ?? "external";
+  if (!state.turnId && ev.turnId && ev.at >= previous.at) state.turnId = ev.turnId;
+  const pending = [...state.pending].sort((a, b) => priority(b) - priority(a) || b.at - a.at);
+  const status = pending.length ? "needs_input" : state.phase;
+  const attention = pending[0]?.attention ?? null;
+  const base = prev ?? {
+    agent: ev.agent,
+    sessionId: ev.sessionId,
+    host: ev.host ?? "cli",
+    title: "",
+    cwd: ev.cwd ?? "",
+    status: "idle",
+    attention: null,
+    summary: "",
+    locator: {},
+    subscribed: false,
+    handledAt: null,
+    startedAt: ev.at,
+    updatedAt: ev.at,
+    transcriptPath: ""
+  };
+  const newRequest = state.pending.some((r) => !previous.pending.some((p) => p.id === r.id || p.inferred && p.attention === r.attention));
+  const statusChanged = base.status !== status || base.attention !== attention || newRequest;
+  const next = {
+    ...base,
+    host: ev.host ?? base.host,
+    cwd: ev.cwd || base.cwd,
+    title: base.title || toTitle(ev.title),
+    summary: ev.summary ? lastSentence(ev.summary) : base.summary,
+    status,
+    attention,
+    state,
+    locator: { ...base.locator, ...stripEmpty(ev.locator) },
+    transcriptPath: ev.transcriptPath || base.transcriptPath,
+    handledAt: statusChanged ? null : base.handledAt,
+    updatedAt: Math.max(base.updatedAt, ev.at)
+  };
+  return { next, notify: next.subscribed && status === "needs_input" && statusChanged, changed: true };
+}
+function priority(request) {
+  return request.attention === "permission" ? 3 : request.inferred ? 1 : 2;
+}
+function stripEmpty(o) {
+  if (!o) return {};
+  const out = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (v !== void 0 && v !== null && v !== "") out[k] = v;
+  }
+  return out;
+}
+
+// src/core/adapters/events.ts
+var string = (value) => typeof value === "string" ? value : "";
+var object = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+function eventTime(value, fallback) {
+  const parsed = typeof value === "number" ? value : Date.parse(string(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+function hookIdentity(payload, now) {
+  return {
+    source: "hook",
+    at: eventTime(payload.timestamp, now),
+    turnId: string(payload.turn_id) || void 0,
+    eventId: string(payload.event_id) || void 0
+  };
+}
+function requestIds(payload) {
+  const id = string(payload.tool_use_id) || string(payload.call_id) || string(payload.request_id);
+  return id ? [id] : [];
+}
+function questionTool(name) {
+  return /(?:^|[._])(?:AskUserQuestion|request_user_input(?:_async)?|AskUser)(?:$)/i.test(name);
+}
+function isAsyncAcknowledgement(value) {
+  let output = value;
+  if (typeof output === "string") {
+    try {
+      output = JSON.parse(output);
+    } catch {
+      return false;
+    }
+  }
+  return object(output).accepted === true && !object(output).answers;
+}
+
+// src/core/sources/transcripts.ts
+function messageText(value) {
+  if (typeof value === "string") return value;
+  return Array.isArray(value) ? value.map((item) => string(object(item).text)).filter(Boolean).join("\n") : "";
+}
+function json(value) {
+  if (typeof value !== "string") return object(value);
+  try {
+    return object(JSON.parse(value));
+  } catch {
+    return {};
+  }
+}
+function questionIds(callId, name, input) {
+  if (!callId) return [];
+  const questions = json(input).questions;
+  return /request_user_input_async$/.test(name) && Array.isArray(questions) && questions.length ? questions.map((_, index) => `${callId}:${index}`) : [callId];
+}
+function asyncReplyIds(text2) {
+  const ids = [];
+  for (const match of text2.matchAll(/<send_user_message_question_reply>([\s\S]*?)<\/send_user_message_question_reply>/g)) {
+    try {
+      const answers = JSON.parse(match[1]);
+      if (!Array.isArray(answers)) continue;
+      for (const answer of answers) {
+        const identity = JSON.parse(string(object(answer).questionItemId));
+        if (Array.isArray(identity) && identity[0] === "request_user_input_async" && typeof identity[1] === "string" && Number.isInteger(identity[2]))
+          ids.push(`${identity[1]}:${identity[2]}`);
+      }
+    } catch {
+    }
+  }
+  return ids;
+}
+var codexTranscript = {
+  parse(entry, session, context) {
+    const payload = object(entry.payload);
+    const at = eventTime(entry.timestamp, 0);
+    if (!at) return [];
+    const metadata = object(payload.internal_chat_message_metadata_passthrough);
+    const turnId = string(payload.turn_id) || string(metadata.turn_id) || context.turnId;
+    const base = { agent: session.agent, sessionId: session.sessionId, at, source: "transcript", turnId };
+    const event2 = (type, extra = {}) => [{ ...base, type, ...extra }];
+    if (entry.type === "session_meta") {
+      if (string(payload.id) && payload.id !== session.sessionId) throw new Error("Transcript session identity mismatch");
+      const origin = string(payload.originator) || string(payload.source);
+      return event2("started", { cwd: string(payload.cwd), host: /desktop|codex_app|chatgpt/i.test(origin) ? "app" : "cli" });
+    }
+    if (entry.type === "turn_context") {
+      context.turnId = string(payload.turn_id) || context.turnId;
+      return [];
+    }
+    if (entry.type === "event_msg") {
+      if (payload.type === "task_started") {
+        context.turnId = turnId;
+        return event2("progress");
+      }
+      if (payload.type === "task_complete") {
+        const summary = string(payload.last_agent_message);
+        return event2("stopped", { summary, attention: asksForInput(summary) ? "question" : void 0 });
+      }
+      if (payload.type === "turn_aborted") return event2("interrupted", { summary: string(payload.reason) });
+      if (payload.type === "error")
+        return event2(/quota|usage.limit|rate.limit/i.test(string(payload.message)) ? "quota" : "failed", {
+          summary: string(payload.message)
+        });
+      if (payload.type === "user_message") {
+        const message = string(payload.message);
+        const replies = asyncReplyIds(message);
+        return replies.length ? event2("resolved", { requestIds: replies }) : event2("progress", { title: message });
+      }
+    }
+    if (entry.type !== "response_item") return [];
+    if ((payload.type === "function_call" || payload.type === "custom_tool_call") && questionTool(string(payload.name))) {
+      const ids = questionIds(string(payload.call_id), string(payload.name), payload.arguments ?? payload.input);
+      if (/request_user_input_async$/.test(string(payload.name))) {
+        context.asyncRequests ??= {};
+        context.asyncRequests[string(payload.call_id)] = ids;
+      }
+      return event2("needs_input", { attention: "question", requestIds: ids });
+    }
+    if (payload.type === "function_call" || payload.type === "custom_tool_call") return event2("tool");
+    if (payload.type === "function_call_output" || payload.type === "custom_tool_call_output") {
+      if (isAsyncAcknowledgement(payload.output)) return [];
+      const asyncIds = context.asyncRequests?.[string(payload.call_id)];
+      if (asyncIds) {
+        const output = json(payload.output);
+        if (output.accepted !== false && !output.error && !output.isError) return [];
+        delete context.asyncRequests[string(payload.call_id)];
+        return event2("resolved", { requestIds: asyncIds });
+      }
+      return event2("resolved", { requestIds: string(payload.call_id) ? [string(payload.call_id)] : [] });
+    }
+    if (payload.type === "message" && payload.role === "user") {
+      const replies = asyncReplyIds(messageText(payload.content));
+      return replies.length ? event2("resolved", { requestIds: replies }) : [];
+    }
+    return [];
+  }
+};
+var claudeTranscript = {
+  parse(entry, session, context) {
+    const at = eventTime(entry.timestamp, 0);
+    if (!at || entry.isSidechain === true) return [];
+    const base = { agent: session.agent, sessionId: session.sessionId, at, source: "transcript", turnId: context.turnId };
+    const message = object(entry.message);
+    const content = Array.isArray(message.content) ? message.content.map(object) : [];
+    const events = [];
+    if (entry.type === "user") {
+      for (const item of content)
+        if (item.type === "tool_result" && string(item.tool_use_id))
+          events.push({ ...base, type: "tool", requestIds: [string(item.tool_use_id)] });
+      if (!events.length && !entry.isMeta) events.push({ ...base, type: "progress", title: messageText(message.content) });
+    }
+    if (entry.type === "assistant") {
+      for (const item of content)
+        if (item.type === "tool_use") {
+          events.push({
+            ...base,
+            type: questionTool(string(item.name)) ? "needs_input" : "tool",
+            attention: questionTool(string(item.name)) ? "question" : void 0,
+            requestIds: questionTool(string(item.name)) && string(item.id) ? [string(item.id)] : []
+          });
+        }
+      if (message.stop_reason === "end_turn" || entry.stop_reason === "end_turn") {
+        const summary = messageText(message.content);
+        events.push({ ...base, type: "stopped", summary, attention: asksForInput(summary) ? "question" : void 0 });
+      }
+    }
+    return events;
+  }
+};
 
 // src/core/adapters/claude.ts
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
 
 // src/core/paths.ts
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join as join2 } from "node:path";
 var HOME = homedir();
-var ROOT = process.env.AGENT_INBOX_HOME || join(HOME, ".sessions");
-var DB_PATH = join(ROOT, "db.sqlite");
-var CONFIG_PATH = join(ROOT, "config.json");
-var BIN_DIR = join(ROOT, "bin");
-var CLI_PATH = join(BIN_DIR, "agent-inbox.mjs");
-var ADAPTERS_DIR = join(ROOT, "adapters");
-var CACHE_DIR = join(ROOT, "cache");
-var LOG_PATH = join(ROOT, "log.txt");
-var CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || join(HOME, ".claude");
-var CLAUDE_PROJECTS = join(CLAUDE_DIR, "projects");
-var CLAUDE_SETTINGS = join(CLAUDE_DIR, "settings.json");
-var CLAUDE_DESKTOP_SESSIONS = process.env.AGENT_INBOX_CLAUDE_DESKTOP_ROOT || join(HOME, "Library", "Application Support", "Claude", "claude-code-sessions");
-var CODEX_DIR = process.env.CODEX_HOME || join(HOME, ".codex");
-var CODEX_SESSIONS = join(CODEX_DIR, "sessions");
-var CODEX_CONFIG = join(CODEX_DIR, "config.toml");
-var CODEX_HOOKS = join(CODEX_DIR, "hooks.json");
-var CODEX_SESSION_INDEX = join(CODEX_DIR, "session_index.jsonl");
+var ROOT = process.env.AGENT_INBOX_HOME || join2(HOME, ".sessions");
+var DB_PATH = join2(ROOT, "db.sqlite");
+var CONFIG_PATH = join2(ROOT, "config.json");
+var BIN_DIR = join2(ROOT, "bin");
+var CLI_PATH = join2(BIN_DIR, "agent-inbox.mjs");
+var ADAPTERS_DIR = join2(ROOT, "adapters");
+var CACHE_DIR = join2(ROOT, "cache");
+var LOG_PATH = join2(ROOT, "log.txt");
+var CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || join2(HOME, ".claude");
+var CLAUDE_PROJECTS = join2(CLAUDE_DIR, "projects");
+var CLAUDE_SETTINGS = join2(CLAUDE_DIR, "settings.json");
+var CLAUDE_DESKTOP_SESSIONS = process.env.AGENT_INBOX_CLAUDE_DESKTOP_ROOT || join2(HOME, "Library", "Application Support", "Claude", "claude-code-sessions");
+var CODEX_DIR = process.env.CODEX_HOME || join2(HOME, ".codex");
+var CODEX_SESSIONS = join2(CODEX_DIR, "sessions");
+var CODEX_CONFIG = join2(CODEX_DIR, "config.toml");
+var CODEX_HOOKS = join2(CODEX_DIR, "hooks.json");
+var CODEX_SESSION_INDEX = join2(CODEX_DIR, "session_index.jsonl");
 
 // src/core/exec.ts
 import { execFile, spawn } from "node:child_process";
@@ -217,8 +571,8 @@ async function jumpToCli(session, resumeCommand, config, navigation = cliNavigat
 }
 
 // src/core/claude-desktop.ts
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { readdirSync as readdirSync2, readFileSync, statSync } from "node:fs";
+import { join as join3 } from "node:path";
 var CLAUDE_BUNDLE = "com.anthropic.claudefordesktop";
 var CLAUDE_LOCAL_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 var CLAUDE_BRIDGE_ID = /^(?:cse|session)_([A-Za-z0-9-]{1,128})$/;
@@ -229,8 +583,8 @@ function readClaudeDesktopSessions(root = CLAUDE_DESKTOP_SESSIONS) {
   const records = [];
   const visit = (dir, depth) => {
     try {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = join2(dir, entry.name);
+      for (const entry of readdirSync2(dir, { withFileTypes: true })) {
+        const path = join3(dir, entry.name);
         if (entry.isDirectory() && depth < 2) visit(path, depth + 1);
         else if (entry.isFile() && entry.name.startsWith("local_") && entry.name.endsWith(".json")) {
           try {
@@ -296,94 +650,6 @@ function enrichClaudeSessions(sessions, records) {
       locator: { ...s3.locator, claudeDesktopId: record2.sessionId }
     };
   });
-}
-
-// src/core/status.ts
-var TITLE_MAX = 80;
-function toTitle(text2) {
-  if (!text2) return "";
-  const line = text2.replace(/<[^>]+>/g, " ").split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
-  if (!line) return "";
-  const clean = line.replace(/\s+/g, " ").replace(/^[#>*\-\s]+/, "");
-  return clean.length > TITLE_MAX ? clean.slice(0, TITLE_MAX - 1) + "\u2026" : clean;
-}
-function lastSentence(text2, max = 240) {
-  if (!text2) return "";
-  const flat = text2.replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim();
-  if (!flat) return "";
-  if (flat.length <= max) return flat;
-  return "\u2026" + flat.slice(flat.length - max + 1);
-}
-function endsWithQuestion(text2) {
-  if (!text2) return false;
-  const t = text2.replace(/```[\s\S]*?```/g, "").trim().replace(/[\s*_`)"'」』）]+$/u, "");
-  return /[?？]$/u.test(t);
-}
-function statusFor(ev, prev) {
-  const prevStatus = prev?.status;
-  switch (ev.type) {
-    case "started":
-      return prev ? { status: prev.status, attention: prev.attention } : { status: "idle", attention: null };
-    case "progress":
-      return { status: "running", attention: null };
-    case "tool":
-      return prevStatus === "needs_input" ? { status: "running", attention: null } : null;
-    case "needs_input":
-      return { status: "needs_input", attention: ev.attention ?? "input" };
-    case "failed":
-      return { status: "needs_input", attention: "failed" };
-    case "quota":
-      return { status: "needs_input", attention: "quota" };
-    case "stopped":
-      return { status: "done", attention: null };
-    case "ended":
-      return prevStatus === "running" ? { status: "done", attention: null } : prev ? { status: prev.status, attention: prev.attention } : null;
-  }
-}
-function applyEvent(prev, ev) {
-  const st = statusFor(ev, prev);
-  if (!st) return null;
-  const base = prev ?? {
-    agent: ev.agent,
-    sessionId: ev.sessionId,
-    host: ev.host ?? "cli",
-    title: "",
-    cwd: ev.cwd ?? "",
-    status: "idle",
-    attention: null,
-    summary: "",
-    locator: {},
-    subscribed: false,
-    handledAt: null,
-    startedAt: ev.at,
-    updatedAt: ev.at,
-    transcriptPath: ""
-  };
-  const statusChanged = base.status !== st.status || base.attention !== st.attention;
-  const next = {
-    ...base,
-    host: ev.host ?? base.host,
-    cwd: ev.cwd || base.cwd,
-    title: base.title || toTitle(ev.title),
-    summary: ev.summary !== void 0 && ev.summary !== "" ? lastSentence(ev.summary) : base.summary,
-    status: st.status,
-    attention: st.attention,
-    locator: { ...base.locator, ...stripEmpty(ev.locator) },
-    transcriptPath: ev.transcriptPath || base.transcriptPath,
-    // A status change brings a handled session back into the inbox.
-    handledAt: statusChanged ? null : base.handledAt,
-    updatedAt: ev.at
-  };
-  const notify = next.subscribed && st.status === "needs_input" && statusChanged;
-  return { next, notify, changed: true };
-}
-function stripEmpty(o) {
-  if (!o) return {};
-  const out = {};
-  for (const [k, v] of Object.entries(o)) {
-    if (v !== void 0 && v !== null && v !== "") out[k] = v;
-  }
-  return out;
 }
 
 // src/core/transcript.ts
@@ -530,7 +796,8 @@ function withOurHooks(file, ours) {
   for (const [event2, entry] of Object.entries(ours)) hooks[event2] = [...hooks[event2] ?? [], entry];
   return { ...base, hooks };
 }
-function hasOurHooks(file) {
+function hasOurHooks(file, events) {
+  if (events) return events.every((event2) => Array.isArray(file.hooks?.[event2]) && file.hooks[event2].some(isOurs));
   return Object.values(file.hooks ?? {}).some((entries) => Array.isArray(entries) && entries.some(isOurs));
 }
 function stringify(file) {
@@ -540,7 +807,18 @@ function stringify(file) {
 // src/core/adapters/claude.ts
 var CLAUDE_APP_BUNDLE = CLAUDE_BUNDLE;
 var CLAUDE_APP_PATHS = ["/Applications/Claude.app"];
-var CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"];
+var CLAUDE_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "Notification",
+  "Stop",
+  "StopFailure",
+  "SessionEnd"
+];
 function read(path) {
   try {
     return readFileSync2(path, "utf8");
@@ -589,15 +867,36 @@ function parseClaudeHook(payload, env, now = Date.now()) {
     locator: source.entrypoint ? { claudeEntrypoint: source.entrypoint } : void 0,
     cwd: s(payload.cwd),
     transcriptPath: s(payload.transcript_path),
-    at: now
+    at: now,
+    ...hookIdentity(payload, now)
   };
   switch (name) {
     case "SessionStart":
       return { ...base, type: "started" };
     case "UserPromptSubmit":
       return { ...base, type: "progress", title: s(payload.prompt) };
+    case "PreToolUse":
+      return questionTool(s(payload.tool_name)) ? {
+        ...base,
+        type: "needs_input",
+        attention: "question",
+        requestIds: questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input)
+      } : { ...base, type: "tool" };
+    case "PermissionRequest":
+      return {
+        ...base,
+        type: "needs_input",
+        attention: questionTool(s(payload.tool_name)) ? "question" : "permission",
+        requestIds: questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input)
+      };
     case "PostToolUse":
-      return { ...base, type: "tool" };
+      return {
+        ...base,
+        type: "tool",
+        requestIds: isAsyncAcknowledgement(payload.tool_response) ? [] : questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input)
+      };
+    case "PostToolUseFailure":
+      return { ...base, type: "tool", requestIds: requestIds(payload), summary: s(payload.error) };
     case "Notification": {
       const message = s(payload.message);
       const attention = attentionFor(s(payload.notification_type), message);
@@ -608,8 +907,7 @@ function parseClaudeHook(payload, env, now = Date.now()) {
     case "SubagentStop": {
       if (name === "SubagentStop") return null;
       const last = s(payload.last_assistant_message) || (base.transcriptPath ? lastClaudeAssistant(base.transcriptPath) : "");
-      if (endsWithQuestion(last)) return { ...base, type: "needs_input", attention: "question", summary: last };
-      return { ...base, type: "stopped", summary: last };
+      return { ...base, type: "stopped", attention: asksForInput(last) ? "question" : void 0, summary: last };
     }
     case "StopFailure":
       return { ...base, type: "failed", summary: s(payload.error) || s(payload.message) };
@@ -639,6 +937,13 @@ async function jumpClaude(session, config, navigation = claudeNavigation) {
 }
 var claudeAdapter = {
   id: "claude",
+  source: {
+    transcript: claudeTranscript,
+    locateTranscript: async (session) => findTranscript(
+      CLAUDE_PROJECTS,
+      findClaudeDesktopSession(session.sessionId, readClaudeDesktopSessions())?.cliSessionId || session.sessionId
+    )
+  },
   name: "Claude Code",
   icon: "claude.svg",
   detect() {
@@ -646,7 +951,7 @@ var claudeAdapter = {
     const app = CLAUDE_APP_PATHS.some(existsSync2);
     let hooked = false;
     try {
-      hooked = hasOurHooks(parseJsonFile(read(CLAUDE_SETTINGS), CLAUDE_SETTINGS));
+      hooked = hasOurHooks(parseJsonFile(read(CLAUDE_SETTINGS), CLAUDE_SETTINGS), CLAUDE_EVENTS);
     } catch {
       hooked = false;
     }
@@ -692,7 +997,15 @@ var claudeAdapter = {
 import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
 var CODEX_APP_BUNDLE = "com.openai.codex";
 var CODEX_APP_PATHS = ["/Applications/Codex.app", "/Applications/ChatGPT.app"];
-var CODEX_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit"];
+var CODEX_HOOK_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  "Stop",
+  "SessionEnd"
+];
 var THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function jumpCodex(session, config, navigation = { openUrl, copyToClipboard, jumpToCli }) {
   if (session.host !== "app") return navigation.jumpToCli(session, `codex resume ${shQuote(session.sessionId)}`, config);
@@ -769,7 +1082,10 @@ function ourNotify(ctx, existing) {
   return orig.length ? [...ours, "--then", ...orig] : ours;
 }
 function hostFromEnv2(env) {
-  return env.__CFBundleIdentifier === CODEX_APP_BUNDLE ? "app" : "cli";
+  if (env.__CFBundleIdentifier === CODEX_APP_BUNDLE || /codex_app|desktop/i.test(env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE ?? ""))
+    return "app";
+  if (env.TERM_PROGRAM || env.TMUX || env.TTY) return "cli";
+  return void 0;
 }
 function parseCodexNotify(payload, env, now = Date.now()) {
   const type = s2(payload.type);
@@ -777,10 +1093,18 @@ function parseCodexNotify(payload, env, now = Date.now()) {
   if (!sessionId) return null;
   const inputs = Array.isArray(payload["input-messages"]) ? payload["input-messages"].map(s2) : [];
   const last = s2(payload["last-assistant-message"]);
-  const base = { agent: "codex", sessionId, host: hostFromEnv2(env), cwd: s2(payload.cwd), title: inputs[0] ?? "", at: now };
+  const base = {
+    agent: "codex",
+    sessionId,
+    host: hostFromEnv2(env),
+    cwd: s2(payload.cwd),
+    title: inputs[0] ?? "",
+    at: eventTime(payload.timestamp, now),
+    source: "notify",
+    turnId: s2(payload["turn-id"]) || s2(payload.turn_id) || void 0
+  };
   if (type === "agent-turn-complete") {
-    if (endsWithQuestion(last)) return { ...base, type: "needs_input", attention: "question", summary: last };
-    return { ...base, type: "stopped", summary: last };
+    return { ...base, type: "stopped", attention: asksForInput(last) ? "question" : void 0, summary: last };
   }
   if (/approval|permission/i.test(type)) return { ...base, type: "needs_input", attention: "permission", summary: last };
   return null;
@@ -795,10 +1119,39 @@ function parseCodexHook(payload, env, now = Date.now()) {
     host: hostFromEnv2(env),
     cwd: s2(payload.cwd),
     transcriptPath: s2(payload.transcript_path),
-    at: now
+    at: now,
+    ...hookIdentity(payload, now)
   };
   if (name === "SessionStart") return { ...base, type: "started" };
   if (name === "UserPromptSubmit") return { ...base, type: "progress", title: s2(payload.prompt) };
+  if (name === "PreToolUse")
+    return questionTool(s2(payload.tool_name)) ? {
+      ...base,
+      type: "needs_input",
+      attention: "question",
+      requestIds: questionIds(requestIds(payload)[0] ?? "", s2(payload.tool_name), payload.tool_input)
+    } : { ...base, type: "tool" };
+  if (name === "PermissionRequest")
+    return {
+      ...base,
+      type: "needs_input",
+      attention: questionTool(s2(payload.tool_name)) ? "question" : "permission",
+      requestIds: questionIds(requestIds(payload)[0] ?? "", s2(payload.tool_name), payload.tool_input)
+    };
+  if (name === "PostToolUse" || name === "PostToolUseFailure")
+    return {
+      ...base,
+      type: "tool",
+      requestIds: isAsyncAcknowledgement(payload.tool_response) ? [] : questionIds(requestIds(payload)[0] ?? "", s2(payload.tool_name), payload.tool_input)
+    };
+  if (name === "Stop")
+    return {
+      ...base,
+      type: "stopped",
+      summary: s2(payload.last_assistant_message),
+      attention: asksForInput(s2(payload.last_assistant_message)) ? "question" : void 0
+    };
+  if (name === "SessionEnd") return { ...base, type: "ended" };
   return null;
 }
 function hookEntries2(ctx) {
@@ -809,13 +1162,18 @@ function hookEntries2(ctx) {
 }
 var codexAdapter = {
   id: "codex",
+  source: { transcript: codexTranscript, locateTranscript: async (session) => findTranscript(CODEX_SESSIONS, session.sessionId, true) },
   name: "Codex",
   icon: "openai.svg",
   detect() {
     const cli = existsSync3(CODEX_DIR);
     const app = CODEX_APP_PATHS.some(existsSync3);
     const toml = read2(CODEX_CONFIG);
-    const hooked = (findNotify(toml)?.items ?? []).some((x) => x.includes(HOOK_MARKER));
+    let hooked = false;
+    try {
+      hooked = (findNotify(toml)?.items ?? []).some((x) => x.includes(HOOK_MARKER)) && hasOurHooks(parseJsonFile(read2(CODEX_HOOKS), CODEX_HOOKS), CODEX_HOOK_EVENTS);
+    } catch {
+    }
     const hosts = [];
     if (cli) hosts.push("cli");
     if (app) hosts.push("app");
@@ -883,8 +1241,8 @@ var codexAdapter = {
 };
 
 // src/core/adapters/custom.ts
-import { existsSync as existsSync4, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync4, writeFileSync } from "node:fs";
-import { join as join3 } from "node:path";
+import { existsSync as existsSync4, mkdirSync, readdirSync as readdirSync3, readFileSync as readFileSync4, writeFileSync } from "node:fs";
+import { join as join4 } from "node:path";
 var fill = (tpl, s3) => tpl.split("{sessionId}").join(s3.sessionId).split("{cwd}").join(s3.cwd);
 function manifestAdapter(m) {
   return {
@@ -907,13 +1265,13 @@ function loadManifests(dir = ADAPTERS_DIR) {
   const out = [];
   let files = [];
   try {
-    files = readdirSync2(dir).filter((f) => f.endsWith(".json"));
+    files = readdirSync3(dir).filter((f) => f.endsWith(".json"));
   } catch {
     return out;
   }
   for (const f of files) {
     try {
-      const m = JSON.parse(readFileSync4(join3(dir, f), "utf8"));
+      const m = JSON.parse(readFileSync4(join4(dir, f), "utf8"));
       if (m && typeof m.id === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(m.id) && m.id !== "claude" && m.id !== "codex") out.push(m);
     } catch {
     }
@@ -998,6 +1356,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   started_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   transcript_path TEXT NOT NULL DEFAULT '',
+  state TEXT NOT NULL DEFAULT '{}',
+  revision INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (agent, session_id)
 );
 CREATE INDEX IF NOT EXISTS sessions_updated ON sessions(updated_at DESC);
@@ -1010,8 +1370,15 @@ CREATE TABLE IF NOT EXISTS events (
   at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS events_session ON events(agent, session_id, at DESC);
+CREATE TABLE IF NOT EXISTS event_receipts (agent TEXT, session_id TEXT, event_key TEXT, PRIMARY KEY(agent, session_id, event_key));
+CREATE TABLE IF NOT EXISTS notification_outbox (
+  id TEXT NOT NULL, channel TEXT NOT NULL, payload TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL DEFAULT 0, lease_until INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(id, channel)
+);
+CREATE TABLE IF NOT EXISTS source_cursors (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `;
-var COLUMNS = "agent, session_id, host, title, cwd, status, attention, summary, locator, subscribed, handled_at, started_at, updated_at, transcript_path";
+var COLUMNS = "agent, session_id, host, title, cwd, status, attention, summary, locator, subscribed, handled_at, started_at, updated_at, transcript_path, state, revision";
 function fromRow(r) {
   let locator = {};
   try {
@@ -1033,8 +1400,18 @@ function fromRow(r) {
     handledAt: r.handled_at ?? null,
     startedAt: r.started_at,
     updatedAt: r.updated_at,
-    transcriptPath: r.transcript_path ?? ""
+    transcriptPath: r.transcript_path ?? "",
+    state: parseState(r.state),
+    revision: r.revision ?? 0
   };
+}
+function parseState(value) {
+  try {
+    const state = JSON.parse(value);
+    return state && typeof state.at === "number" && Array.isArray(state.pending) && Array.isArray(state.resolved) ? state : void 0;
+  } catch {
+    return void 0;
+  }
 }
 function values(s3) {
   return [
@@ -1051,7 +1428,9 @@ function values(s3) {
     q(s3.handledAt),
     q(s3.startedAt),
     q(s3.updatedAt),
-    q(s3.transcriptPath)
+    q(s3.transcriptPath),
+    q(JSON.stringify(s3.state ?? {})),
+    q(s3.revision ?? 0)
   ].join(", ");
 }
 var Store = class {
@@ -1062,10 +1441,31 @@ var Store = class {
   ready = null;
   init() {
     if (!this.ready) {
-      this.ready = exec(this.path, "PRAGMA journal_mode=WAL;").then(() => exec(this.path, SCHEMA).then(() => void 0));
+      this.ready = this.initialize();
       this.ready.catch(() => this.ready = null);
     }
     return this.ready;
+  }
+  async initialize() {
+    await exec(this.path, "PRAGMA journal_mode=WAL;");
+    await exec(this.path, SCHEMA);
+    for (const [name, declaration] of [
+      ["state", "TEXT NOT NULL DEFAULT '{}'"],
+      ["revision", "INTEGER NOT NULL DEFAULT 0"]
+    ]) {
+      const columns = await exec(this.path, "PRAGMA table_info(sessions);");
+      if (columns.some((column) => column.name === name)) continue;
+      try {
+        await exec(this.path, `ALTER TABLE sessions ADD COLUMN ${name} ${declaration};`);
+      } catch (error) {
+        const current = await exec(this.path, "PRAGMA table_info(sessions);");
+        if (!current.some((column) => column.name === name)) throw error;
+      }
+    }
+    await exec(
+      this.path,
+      "UPDATE sessions SET status='ready', revision=revision+1 WHERE agent IN ('claude','codex') AND status='done' AND state='{}';"
+    );
   }
   async run(sql) {
     await this.init();
@@ -1085,21 +1485,61 @@ var Store = class {
     return rows.map(fromRow);
   }
   async put(s3) {
-    await this.run(`INSERT OR REPLACE INTO sessions (${COLUMNS}) VALUES (${values(s3)});`);
+    await this.run(
+      `INSERT INTO sessions (${COLUMNS}) VALUES (${values(s3)}) ON CONFLICT(agent,session_id) DO UPDATE SET (${COLUMNS})=(${values(s3)}), revision=sessions.revision+1;`
+    );
   }
   /** Apply an adapter event through the state machine and persist it. */
-  async record(ev) {
-    const prev = await this.get(ev.agent, ev.sessionId);
-    const t = applyEvent(prev, ev);
-    if (!t) return null;
+  async record(ev, options = {}) {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const prev = await this.get(ev.agent, ev.sessionId);
+      const receipt = `agent=${q(ev.agent)} AND session_id=${q(ev.sessionId)} AND event_key=${q(ev.eventId)}`;
+      if (ev.eventId && (await this.run(`SELECT 1 FROM event_receipts WHERE ${receipt};`)).length) return null;
+      const t = applyEvent(prev, ev);
+      if (!t) return null;
+      t.next.revision = (prev?.revision ?? -1) + 1;
+      const allowed = ev.eventId ? ` AND NOT EXISTS (SELECT 1 FROM event_receipts WHERE ${receipt})` : "";
+      const write = prev ? `UPDATE sessions SET (${COLUMNS})=(${values(t.next)}) WHERE agent=${q(ev.agent)} AND session_id=${q(ev.sessionId)} AND revision=${q(prev.revision ?? 0)}${allowed};` : `INSERT OR IGNORE INTO sessions (${COLUMNS}) SELECT ${values(t.next)} WHERE 1${allowed};`;
+      const notificationId = `${ev.agent}:${ev.sessionId}:${t.next.revision}`;
+      const enqueue = t.notify && !options.silent ? [...new Set(options.channels ?? [])].map(
+        (channel) => `INSERT OR IGNORE INTO notification_outbox (id,channel,payload) SELECT ${q(notificationId)},${q(channel)},${q(JSON.stringify(t.next))} WHERE (SELECT n FROM applied)=1;`
+      ).join("") : "";
+      const result = await this.run(
+        `BEGIN IMMEDIATE; ${write} CREATE TEMP TABLE applied AS SELECT changes() AS n;INSERT INTO events (agent,session_id,type,summary,at) SELECT ${q(ev.agent)},${q(ev.sessionId)},${q(ev.type)},${q(t.next.summary)},${q(ev.at)} WHERE (SELECT n FROM applied)=1;` + (ev.eventId ? `INSERT OR IGNORE INTO event_receipts SELECT ${q(ev.agent)},${q(ev.sessionId)},${q(ev.eventId)} WHERE (SELECT n FROM applied)=1;` : "") + enqueue + `DELETE FROM events WHERE at < ${q(ev.at - 30 * 24 * 3600 * 1e3)}; SELECT n FROM applied; COMMIT;`
+      );
+      if (result[0]?.n === 1) return t;
+    }
+    throw new Error("Concurrent session updates did not settle; event was not recorded");
+  }
+  async subscribed() {
+    return (await this.run("SELECT " + COLUMNS + " FROM sessions WHERE subscribed=1;")).map(fromRow);
+  }
+  async attachTranscript(agent, sessionId, path) {
     await this.run(
-      `BEGIN; INSERT OR REPLACE INTO sessions (${COLUMNS}) VALUES (${values(t.next)});INSERT INTO events (agent, session_id, type, summary, at) VALUES (${q(ev.agent)}, ${q(ev.sessionId)}, ${q(ev.type)}, ${q(t.next.summary)}, ${q(ev.at)});DELETE FROM events WHERE at < ${q(ev.at - 30 * 24 * 3600 * 1e3)}; COMMIT;`
+      `UPDATE sessions SET transcript_path=${q(path)}, revision=revision+1 WHERE agent=${q(agent)} AND session_id=${q(sessionId)} AND transcript_path<>${q(path)};`
     );
-    return t;
+  }
+  async readCursor(key) {
+    const rows = await this.run(`SELECT value FROM source_cursors WHERE key=${q(key)};`);
+    return rows[0] ? JSON.parse(rows[0].value) : void 0;
+  }
+  async writeCursor(key, value) {
+    await this.run(`INSERT OR REPLACE INTO source_cursors VALUES (${q(key)},${q(JSON.stringify(value))});`);
+  }
+  async claimNotifications(now = Date.now()) {
+    return this.run(
+      `UPDATE notification_outbox SET lease_until=${q(now + 6e4)} WHERE rowid IN (SELECT rowid FROM notification_outbox WHERE next_attempt_at<=${q(now)} AND lease_until<=${q(now)} LIMIT 1) RETURNING id,channel,payload,attempts;`
+    );
+  }
+  async finishNotification(job, delivered, now = Date.now()) {
+    const where = `id=${q(job.id)} AND channel=${q(job.channel)}`;
+    await this.run(
+      delivered ? `DELETE FROM notification_outbox WHERE ${where};` : `UPDATE notification_outbox SET attempts=attempts+1,lease_until=0,next_attempt_at=${q(now + Math.min(36e5, 1e3 * 2 ** Math.min(job.attempts, 12)))} WHERE ${where};`
+    );
   }
   async setSubscribed(agent, sessionId, subscribed) {
     await this.run(
-      `UPDATE sessions SET subscribed=${q(subscribed)}${subscribed ? ", handled_at=NULL" : ""} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`
+      `UPDATE sessions SET revision=revision+1, subscribed=${q(subscribed)}${subscribed ? ", handled_at=NULL" : ""} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`
     );
   }
   /** Subscribe to a session that may only exist as a transcript on disk (history). */
@@ -1111,14 +1551,14 @@ var Store = class {
       })
     )})` : "";
     await this.run(
-      `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s3, subscribed: true, handledAt: null })}) ON CONFLICT(agent, session_id) DO UPDATE SET subscribed=1, handled_at=NULL${identity};`
+      `INSERT INTO sessions (${COLUMNS}) VALUES (${values({ ...s3, subscribed: true, handledAt: null })}) ON CONFLICT(agent, session_id) DO UPDATE SET revision=sessions.revision+1, subscribed=1, handled_at=NULL${identity};`
     );
   }
   async markHandled(agent, sessionId, at = Date.now()) {
-    await this.run(`UPDATE sessions SET handled_at=${q(at)} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
+    await this.run(`UPDATE sessions SET revision=revision+1, handled_at=${q(at)} WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
   }
   async unmarkHandled(agent, sessionId) {
-    await this.run(`UPDATE sessions SET handled_at=NULL WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
+    await this.run(`UPDATE sessions SET revision=revision+1, handled_at=NULL WHERE agent=${q(agent)} AND session_id=${q(sessionId)};`);
   }
   /** "Archive Completed": every finished session leaves the inbox. */
   async archiveDone(at = Date.now(), observed) {
@@ -1126,7 +1566,7 @@ var Store = class {
     if (snapshots?.length === 0) return 0;
     const state = snapshots ? `status IN ('idle','done') AND (${snapshots.map((s3) => `(agent=${q(s3.agent)} AND session_id=${q(s3.sessionId)} AND updated_at=${q(s3.updatedAt)})`).join(" OR ")})` : "status='done'";
     const rows = await this.run(
-      `UPDATE sessions SET handled_at=${q(at)} WHERE subscribed=1 AND ${state} AND handled_at IS NULL; SELECT changes() AS n;`
+      `UPDATE sessions SET revision=revision+1, handled_at=${q(at)} WHERE subscribed=1 AND ${state} AND handled_at IS NULL; SELECT changes() AS n;`
     );
     return rows[0]?.n ?? 0;
   }
@@ -1156,6 +1596,11 @@ var zh = {
   "section.needsInput": "\u5F85\u8F93\u5165",
   "section.running": "\u8FD0\u884C\u4E2D",
   "section.done": "\u5DF2\u5B8C\u6210",
+  "status.ready": "\u672C\u8F6E\u7ED3\u675F",
+  "status.unknown": "\u72B6\u6001\u672A\u786E\u8BA4",
+  "status.idle": "\u5C1A\u672A\u5F00\u59CB",
+  "attention.interrupted": "\u5DF2\u4E2D\u65AD",
+  "meta.status": "\u72B6\u6001",
   "section.subscribed": "\u5DF2\u8BA2\u9605",
   "section.general": "\u901A\u7528",
   "section.agents": "Agent",
@@ -1267,7 +1712,7 @@ var zh = {
   "settings.language": "\u8BED\u8A00 / Language",
   "settings.languageSub": "\u754C\u9762\u548C\u7CFB\u7EDF\u901A\u77E5\u4F7F\u7528\u7684\u8BED\u8A00",
   // setup
-  "setup.ready": "\u5C31\u7EEA",
+  "setup.ready": "\u5DF2\u5B89\u88C5",
   "setup.install": "\u672A\u63A5\u5165",
   "setup.installing": "\u63A5\u5165\u4E2D",
   "setup.installNotDetected": "\u672A\u80FD\u786E\u8BA4\u63A5\u5165\u72B6\u6001\uFF0C\u8BF7\u91CD\u8BD5",
@@ -1292,6 +1737,11 @@ var en = {
   "section.needsInput": "Waiting for You",
   "section.running": "Running",
   "section.done": "Completed",
+  "status.ready": "Turn ended",
+  "status.unknown": "Status unknown",
+  "status.idle": "Not started",
+  "attention.interrupted": "Interrupted",
+  "meta.status": "Status",
   "section.subscribed": "Subscribed",
   "section.general": "General",
   "section.agents": "Agents",
@@ -1392,7 +1842,7 @@ var en = {
   "settings.menuBarUnavailable": "Enable Refresh Menu Bar in extension preferences, then try again",
   "settings.language": "Language / \u8BED\u8A00",
   "settings.languageSub": "Language for the interface and system notifications",
-  "setup.ready": "Ready",
+  "setup.ready": "Installed",
   "setup.install": "Not Connected",
   "setup.installing": "Connecting",
   "setup.installNotDetected": "Connection could not be verified. Try again.",
@@ -1423,52 +1873,349 @@ function translator(lang) {
 }
 
 // src/core/install.ts
-import { chmodSync, copyFileSync, existsSync as existsSync7, mkdirSync as mkdirSync4, readFileSync as readFileSync6, writeFileSync as writeFileSync3 } from "node:fs";
+import { chmodSync, copyFileSync, existsSync as existsSync7, mkdirSync as mkdirSync4, readFileSync as readFileSync6, writeFileSync as writeFileSync3, renameSync, rmSync } from "node:fs";
+import { dirname as dirname2 } from "node:path";
+async function resolveNode(fallback = process.execPath) {
+  const shell = process.env.SHELL && existsSync7(process.env.SHELL) ? process.env.SHELL : "/bin/zsh";
+  const r = await run(shell, ["-lc", "command -v node"], void 0, 4e3);
+  const fromShell = r.stdout.trim().split("\n").pop();
+  if (r.ok && fromShell && fromShell.startsWith("/") && existsSync7(fromShell)) return fromShell;
+  for (const p of ["/opt/homebrew/bin/node", "/usr/local/bin/node"]) if (existsSync7(p)) return p;
+  return fallback && existsSync7(fallback) ? fallback : void 0;
+}
+function applyPlan(plan) {
+  const written = [];
+  for (const c of plan.changes) {
+    if (c.before === c.after) continue;
+    mkdirSync4(dirname2(c.path), { recursive: true });
+    if (c.before) writeFileSync3(c.path + ".agent-inbox.bak", c.before);
+    writeFileSync3(c.path, c.after);
+    written.push(c.path);
+  }
+  return written;
+}
 function terminalNotifierPath() {
   for (const p of ["/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier"]) if (existsSync7(p)) return p;
   return void 0;
 }
 
-// src/core/notify.ts
-function jumpDeeplink(config, s3) {
-  const context = encodeURIComponent(JSON.stringify({ jump: { agent: s3.agent, sessionId: s3.sessionId } }));
+// src/core/notifications/macos.ts
+function raycastNotificationLink(config, message) {
+  const context = encodeURIComponent(JSON.stringify({ jump: { agent: message.agent, sessionId: message.sessionId } }));
   return `${config.deeplinkBase}/inbox?context=${context}`;
 }
-function sendWaitingNotification(config, s3) {
-  if (!config.notifications || !s3.subscribed || s3.status !== "needs_input") return;
-  const t = translator(config.language);
-  const title = t(s3.attention && s3.attention !== "input" ? `attention.${s3.attention}` : "notify.waiting");
-  const subtitle = s3.title || s3.sessionId;
-  const message = s3.summary || " ";
-  const tn = terminalNotifierPath();
-  if (tn) {
-    detach(tn, [
-      "-title",
-      title,
-      "-subtitle",
-      subtitle,
-      "-message",
-      message,
-      "-sound",
-      "default",
-      "-group",
-      `${s3.agent}:${s3.sessionId}`,
-      "-open",
-      jumpDeeplink(config, s3)
-    ]);
-    return;
+function macosChannel(link = raycastNotificationLink) {
+  return {
+    id: "macos",
+    async send(message, { config }) {
+      const t = translator(config.language);
+      const title = t(message.attention && message.attention !== "input" ? `attention.${message.attention}` : "notify.waiting");
+      const notifier = terminalNotifierPath();
+      const result = notifier ? await run(
+        notifier,
+        [
+          "-title",
+          title,
+          "-subtitle",
+          message.title,
+          "-message",
+          message.summary || " ",
+          "-sound",
+          "default",
+          "-group",
+          `${message.agent}:${message.sessionId}`,
+          "-open",
+          link(config, message)
+        ],
+        void 0,
+        8e3
+      ) : await run(
+        "/usr/bin/osascript",
+        [
+          "-e",
+          `display notification ${asString(message.summary || " ")} with title ${asString(title)} subtitle ${asString(message.title)} sound name "Glass"`
+        ],
+        void 0,
+        8e3
+      );
+      if (!result.ok) throw new Error(result.stderr || "macOS notification failed");
+    }
+  };
+}
+
+// src/core/notifications/types.ts
+function notificationMessage(id, session) {
+  return {
+    id,
+    agent: session.agent,
+    sessionId: session.sessionId,
+    title: session.title || session.sessionId,
+    summary: session.summary,
+    attention: session.attention,
+    at: session.updatedAt
+  };
+}
+
+// src/core/notifications/index.ts
+function enabledChannels(config) {
+  return config.notifications ? [...new Set(config.notificationChannels ?? ["macos"])] : [];
+}
+async function deliverNotifications(store, config, channels = [macosChannel()], now) {
+  const registry = new Map(channels.map((channel) => [channel.id, channel]));
+  const enabled = enabledChannels(config);
+  for (let count = 0; count < 20; count++) {
+    const [job] = await store.claimNotifications(now ?? Date.now());
+    if (!job) break;
+    const session = JSON.parse(job.payload);
+    const current = await store.get(session.agent, session.sessionId);
+    if (!enabled.includes(job.channel) || !current?.subscribed || current.handledAt !== null || current.status !== "needs_input" || !sameAttention(session, current)) {
+      await store.finishNotification(job, true, now ?? Date.now());
+      continue;
+    }
+    const channel = registry.get(job.channel);
+    const controller = new AbortController();
+    let timer;
+    try {
+      if (!channel) throw new Error(`Unknown notification channel: ${job.channel}`);
+      await Promise.race([
+        channel.send(notificationMessage(job.id, session), { config, signal: controller.signal }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error("Notification timed out"));
+          }, 1e4);
+        })
+      ]);
+      await store.finishNotification(job, true, now ?? Date.now());
+    } catch {
+      await store.finishNotification(job, false, now ?? Date.now());
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
-  detach("/usr/bin/osascript", [
-    "-e",
-    `display notification ${asString(message)} with title ${asString(title)} subtitle ${asString(subtitle)} sound name "Glass"`
-  ]);
+}
+function sameAttention(queued, current) {
+  const requests = queued.state?.pending ?? [];
+  return requests.length ? requests.some((request) => current.state?.pending.some((p) => p.id === request.id && p.at === request.at)) : queued.attention === current.attention;
+}
+
+// src/core/engine.ts
+var EventEngine = class {
+  constructor(store, config) {
+    this.store = store;
+    this.config = config;
+  }
+  store;
+  config;
+  ingest(event2, options = {}) {
+    return this.store.record(event2, { channels: enabledChannels(this.config()), ...options });
+  }
+};
+
+// src/core/sources/collector.ts
+import { closeSync as closeSync2, openSync as openSync2, readSync as readSync2, statSync as statSync3 } from "node:fs";
+import { createHash } from "node:crypto";
+var WINDOW = 512 * 1024;
+var MAX_BATCH = 1024 * 1024;
+function readTranscriptBatch(path, previous, fromStart = false) {
+  const stat = statSync3(path);
+  if (!stat.isFile()) throw new Error("Transcript is not a regular file");
+  const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+  const reset = !previous || previous.identity !== identity || stat.size < previous.offset || stat.size === previous.offset && stat.mtimeMs !== previous.mtime;
+  const start = reset ? fromStart ? 0 : Math.max(0, stat.size - WINDOW) : previous.offset;
+  const cursor = {
+    identity,
+    offset: start,
+    context: reset ? {} : { ...previous.context },
+    skipping: reset ? start > 0 : previous.skipping,
+    mtime: stat.mtimeMs,
+    bootstrapping: reset || previous?.bootstrapping,
+    snapshot: reset ? void 0 : previous?.snapshot
+  };
+  const fd = openSync2(path, "r");
+  const records = [];
+  try {
+    const buffer = Buffer.alloc(Math.min(MAX_BATCH, stat.size - start));
+    const length = readSync2(fd, buffer, 0, buffer.length, start);
+    let from = 0;
+    for (let index = 0; index < length; index++) {
+      if (buffer[index] !== 10) continue;
+      if (!cursor.skipping) {
+        try {
+          const entry = JSON.parse(buffer.subarray(from, index).toString("utf8"));
+          if (entry && typeof entry === "object" && !Array.isArray(entry)) records.push({ entry, offset: start + from });
+        } catch {
+        }
+      }
+      cursor.skipping = false;
+      from = index + 1;
+      cursor.offset = start + from;
+    }
+    if (!cursor.skipping && from < length && start + length === stat.size) {
+      try {
+        const entry = JSON.parse(buffer.subarray(from, length).toString("utf8"));
+        if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+          records.push({ entry, offset: start + from });
+          cursor.offset = stat.size;
+          from = length;
+        }
+      } catch {
+      }
+    }
+    if (from === 0 && length === MAX_BATCH) {
+      cursor.offset = start + length;
+      cursor.skipping = true;
+    }
+    if (cursor.skipping && from === 0 && start + length === stat.size) cursor.offset = stat.size;
+  } finally {
+    closeSync2(fd);
+  }
+  return { records, cursor, reset, atEnd: cursor.offset === stat.size };
+}
+var TranscriptCollector = class {
+  constructor(engine, adapters, onError = () => {
+  }) {
+    this.engine = engine;
+    this.adapters = adapters;
+    this.onError = onError;
+  }
+  engine;
+  adapters;
+  onError;
+  lookups = /* @__PURE__ */ new Map();
+  async poll() {
+    const adapters = new Map(this.adapters().map((adapter) => [adapter.id, adapter]));
+    for (const session of await this.engine.store.subscribed()) {
+      const adapter = adapters.get(session.agent);
+      const source = adapter?.source?.transcript;
+      if (!source) continue;
+      const key = `${session.agent}:${session.sessionId}`;
+      try {
+        let path = session.transcriptPath;
+        if (!path || !readable(path)) {
+          if (Date.now() - (this.lookups.get(key) ?? 0) < 3e4) continue;
+          this.lookups.set(key, Date.now());
+          path = await adapter?.source?.locateTranscript?.(session) ?? "";
+        }
+        if (!path) continue;
+        if (path !== session.transcriptPath) await this.engine.store.attachTranscript(session.agent, session.sessionId, path);
+        const cursorKey = `transcript:v2:${key}:${path}`;
+        let previous = await this.engine.store.readCursor(cursorKey);
+        for (let chunk = 0; chunk < 32; chunk++) {
+          const batch = readTranscriptBatch(path, previous, true);
+          let snapshot = batch.cursor.snapshot;
+          for (const { entry, offset } of batch.records) {
+            for (const [index, event2] of source.parse(entry, session, batch.cursor.context).entries()) {
+              const normalized = {
+                ...event2,
+                transcriptPath: path,
+                eventId: createHash("sha256").update(`${cursorKey}:${batch.cursor.identity}:${offset}:${index}:${JSON.stringify(entry)}`).digest("hex")
+              };
+              if (batch.cursor.bootstrapping) snapshot = applyEvent(snapshot, normalized)?.next ?? snapshot;
+              else await this.engine.ingest(normalized);
+            }
+          }
+          if (batch.cursor.bootstrapping && batch.atEnd) {
+            if (snapshot?.state)
+              await this.engine.ingest(
+                {
+                  agent: session.agent,
+                  sessionId: session.sessionId,
+                  type: "snapshot",
+                  snapshot: snapshot.state,
+                  snapshotComplete: true,
+                  host: session.host === "app" ? "app" : snapshot.host,
+                  at: snapshot.state.at,
+                  turnId: snapshot.state.turnId,
+                  source: "transcript",
+                  transcriptPath: path,
+                  summary: snapshot.summary,
+                  eventId: `snapshot:${cursorKey}:${batch.cursor.identity}:${batch.cursor.offset}:${batch.cursor.mtime}`
+                },
+                { silent: true }
+              );
+            batch.cursor.bootstrapping = false;
+            batch.cursor.snapshot = void 0;
+          } else if (batch.cursor.bootstrapping) batch.cursor.snapshot = snapshot;
+          await this.engine.store.writeCursor(cursorKey, batch.cursor);
+          const advanced = batch.cursor.offset !== previous?.offset;
+          previous = batch.cursor;
+          if (batch.atEnd || !advanced) break;
+        }
+      } catch (error) {
+        this.onError(`collector ${key}: ${String(error)}`);
+      }
+    }
+  }
+};
+function readable(path) {
+  try {
+    return statSync3(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
+// src/core/service.ts
+import { join as join5 } from "node:path";
+import { homedir as homedir2 } from "node:os";
+import { mkdirSync as mkdirSync5, writeFileSync as writeFileSync4, readFileSync as readFileSync7, existsSync as existsSync8 } from "node:fs";
+var LABEL = "com.fango.agent-inbox.collector";
+var xml = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function collectorPlist(node, cli, root, env = {}) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>${LABEL}</string>
+<key>ProgramArguments</key><array>${[node, cli, "watch"].map((arg) => `<string>${xml(arg)}</string>`).join("")}</array>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ThrottleInterval</key><integer>10</integer>
+<key>EnvironmentVariables</key><dict>${Object.entries({ ...env, AGENT_INBOX_HOME: root }).map(([key, value]) => `<key>${xml(key)}</key><string>${xml(value)}</string>`).join("")}</dict>
+<key>StandardErrorPath</key><string>${xml(join5(root, "collector.log"))}</string>
+</dict></plist>
+`;
+}
+async function installCollector(node, cli = CLI_PATH) {
+  const directory = join5(homedir2(), "Library", "LaunchAgents");
+  const path = join5(directory, `${LABEL}.plist`);
+  mkdirSync5(directory, { recursive: true });
+  mkdirSync5(ROOT, { recursive: true });
+  const env = {};
+  for (const key of ["CODEX_HOME", "CLAUDE_CONFIG_DIR", "AGENT_INBOX_CLAUDE_DESKTOP_ROOT"])
+    if (process.env[key]) env[key] = process.env[key];
+  const contents = collectorPlist(node, cli, ROOT, env);
+  if (existsSync8(path) && readFileSync7(path, "utf8") !== contents) {
+    writeFileSync4(path + ".agent-inbox.bak", readFileSync7(path));
+    await run("/bin/launchctl", ["bootout", `gui/${process.getuid()}/${LABEL}`]);
+  }
+  writeFileSync4(path, contents);
+  const domain = `gui/${process.getuid()}`;
+  const existing = await run("/bin/launchctl", ["print", `${domain}/${LABEL}`]);
+  if (!existing.ok) {
+    const started = await run("/bin/launchctl", ["bootstrap", domain, path]);
+    if (!started.ok) throw new Error(started.stderr || "Could not start the Agent Inbox collector");
+  } else {
+    const restarted = await run("/bin/launchctl", ["kickstart", "-k", `${domain}/${LABEL}`]);
+    if (!restarted.ok) throw new Error(restarted.stderr || "Could not restart the Agent Inbox collector");
+  }
 }
 
 // cli/agent-inbox.ts
-var EVENT_TYPES = ["started", "progress", "tool", "needs_input", "stopped", "failed", "quota", "ended"];
+var EVENT_TYPES = [
+  "started",
+  "progress",
+  "tool",
+  "needs_input",
+  "resolved",
+  "stopped",
+  "completed",
+  "failed",
+  "quota",
+  "interrupted",
+  "ended"
+];
 function log(msg) {
   try {
-    mkdirSync5(ROOT, { recursive: true });
+    mkdirSync6(ROOT, { recursive: true });
     appendFileSync(LOG_PATH, `${(/* @__PURE__ */ new Date()).toISOString()} ${msg}
 `);
   } catch {
@@ -1476,7 +2223,7 @@ function log(msg) {
 }
 function readStdin() {
   try {
-    return readFileSync7(0, "utf8");
+    return readFileSync8(0, "utf8");
   } catch {
     return "";
   }
@@ -1491,20 +2238,20 @@ function parseJson(text2) {
 }
 async function record(ev) {
   const store = new Store();
-  const t = await store.record(ev);
-  if (t?.notify) sendWaitingNotification(readConfig(), t.next);
+  const t = await new EventEngine(store, readConfig).ingest(ev);
+  if (t?.notify) detach(process.execPath, [process.argv[1], "deliver"]);
   return t;
 }
 async function hook(kind, args) {
   const adapterId = kind === "codex-notify" ? "codex" : kind;
   let payload;
   if (kind === "codex-notify") {
-    const json = args[args.length - 1] ?? "{}";
-    payload = parseJson(json);
+    const json2 = args[args.length - 1] ?? "{}";
+    payload = parseJson(json2);
     const then = args.indexOf("--then");
     if (then !== -1 && args.length - 1 > then + 1) {
       const cmd = args.slice(then + 1, -1);
-      detach(cmd[0], [...cmd.slice(1), json]);
+      detach(cmd[0], [...cmd.slice(1), json2]);
     }
   } else {
     payload = parseJson(readStdin());
@@ -1533,16 +2280,27 @@ async function event(args) {
     return;
   }
   const host = flag(args, "host");
+  const attention = flag(args, "attention");
+  if (attention && !["input", "question", "permission", "failed", "quota", "interrupted"].includes(attention)) {
+    process.stderr.write("usage: --attention <input|question|permission|failed|quota|interrupted>\n");
+    process.exitCode = 2;
+    return;
+  }
   await record({
     agent,
     sessionId,
     type,
     host: host === "app" ? "app" : host === "cli" ? "cli" : void 0,
+    attention,
     cwd: flag(args, "cwd") ?? process.cwd(),
     title: flag(args, "title"),
     summary: flag(args, "summary"),
     locator: await captureLocator(process.env),
-    at: Date.now()
+    at: Number(flag(args, "at")) || Date.now(),
+    source: "external",
+    eventId: flag(args, "event-id"),
+    turnId: flag(args, "turn"),
+    requestIds: flag(args, "request")?.split(",")
   });
 }
 async function jump(args) {
@@ -1571,9 +2329,49 @@ async function list(args) {
 `);
   }
 }
+async function watch(once = false) {
+  const store = new Store();
+  const collector = new TranscriptCollector(new EventEngine(store, readConfig), allAdapters, log);
+  let stopping = false;
+  const stop = () => {
+    stopping = true;
+  };
+  process.once("SIGTERM", stop);
+  process.once("SIGINT", stop);
+  try {
+    do {
+      try {
+        await collector.poll();
+        await deliverNotifications(store, readConfig());
+      } catch (error) {
+        log(`collector: ${String(error)}`);
+      }
+      if (once || stopping) break;
+      await new Promise((resolve) => setTimeout(resolve, 2e3));
+    } while (!stopping);
+  } finally {
+    process.removeListener("SIGTERM", stop);
+    process.removeListener("SIGINT", stop);
+  }
+}
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   switch (cmd) {
+    case "watch":
+      return watch(rest.includes("--once"));
+    case "deliver":
+      return deliverNotifications(new Store(), readConfig());
+    case "install": {
+      const node = await resolveNode();
+      if (!node) throw new Error("No Node runtime available for hooks");
+      for (const id of rest.filter((arg) => !arg.startsWith("--"))) {
+        const adapter = getAdapter(id);
+        if (!adapter) throw new Error(`Unknown agent: ${id}`);
+        applyPlan(adapter.planInstall({ node, cli: process.argv[1] }));
+      }
+      if (rest.includes("--collector")) await installCollector(node, process.argv[1]);
+      return;
+    }
     case "hook":
       try {
         await hook(rest[0] ?? "", rest.slice(1));

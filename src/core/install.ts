@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import { CLI_PATH } from "./paths";
 import { run } from "./exec";
@@ -21,7 +21,16 @@ export async function resolveNode(fallback = process.execPath): Promise<string |
 export function installCli(source: string, target = CLI_PATH): string {
   mkdirSync(dirname(target), { recursive: true });
   const same = existsSync(target) && readFileSync(target, "utf8") === readFileSync(source, "utf8");
-  if (!same) copyFileSync(source, target);
+  if (!same) {
+    const temporary = `${target}.${process.pid}.tmp`;
+    try {
+      copyFileSync(source, temporary);
+      chmodSync(temporary, 0o755);
+      renameSync(temporary, target);
+    } finally {
+      rmSync(temporary, { force: true });
+    }
+  }
   chmodSync(target, 0o755);
   return target;
 }

@@ -1,16 +1,27 @@
+import { findTranscript } from "../sources/locate";
+import { codexTranscript, questionIds } from "../sources/transcripts";
 import { existsSync, readFileSync } from "node:fs";
-import { CODEX_CONFIG, CODEX_DIR, CODEX_HOOKS } from "../paths";
+import { CODEX_CONFIG, CODEX_DIR, CODEX_HOOKS, CODEX_SESSIONS } from "../paths";
 import { shQuote } from "../exec";
 import { copyToClipboard, jumpToCli, openUrl } from "../jump";
-import { endsWithQuestion } from "../status";
+import { asksForInput } from "../status";
 import { AgentEvent, Config, Host, Session } from "../types";
 import { Adapter, DetectResult, FileChange, HOOK_MARKER, HookContext, InstallPlan, JumpResult } from "./types";
+import { hookIdentity, requestIds, questionTool, isAsyncAcknowledgement, eventTime } from "./events";
 import { hasOurHooks, HookEntry, parseJsonFile, stringify, withOurHooks, withoutOurHooks } from "./json";
 
 export const CODEX_APP_BUNDLE = "com.openai.codex";
 const CODEX_APP_PATHS = ["/Applications/Codex.app", "/Applications/ChatGPT.app"];
-/** Codex hooks (hooks.json) only add the "running" signal; turn completion comes from `notify`. */
-export const CODEX_HOOK_EVENTS = ["SessionStart", "UserPromptSubmit"] as const;
+/** Structured hook signals; notify remains a compatibility fallback. */
+export const CODEX_HOOK_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "PermissionRequest",
+  "PostToolUse",
+  "Stop",
+  "SessionEnd",
+] as const;
 
 const THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -112,8 +123,11 @@ export function ourNotify(ctx: HookContext, existing: string[]): string[] {
 
 // ---------- hook payload parsing ----------
 
-function hostFromEnv(env: NodeJS.ProcessEnv): Host {
-  return env.__CFBundleIdentifier === CODEX_APP_BUNDLE ? "app" : "cli";
+function hostFromEnv(env: NodeJS.ProcessEnv): Host | undefined {
+  if (env.__CFBundleIdentifier === CODEX_APP_BUNDLE || /codex_app|desktop/i.test(env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE ?? ""))
+    return "app";
+  if (env.TERM_PROGRAM || env.TMUX || env.TTY) return "cli";
+  return undefined;
 }
 
 /** `notify` payload: {"type":"agent-turn-complete","thread-id","cwd","input-messages","last-assistant-message"} */
@@ -123,10 +137,18 @@ export function parseCodexNotify(payload: Record<string, unknown>, env: NodeJS.P
   if (!sessionId) return null;
   const inputs = Array.isArray(payload["input-messages"]) ? (payload["input-messages"] as unknown[]).map(s) : [];
   const last = s(payload["last-assistant-message"]);
-  const base = { agent: "codex", sessionId, host: hostFromEnv(env), cwd: s(payload.cwd), title: inputs[0] ?? "", at: now };
+  const base = {
+    agent: "codex",
+    sessionId,
+    host: hostFromEnv(env),
+    cwd: s(payload.cwd),
+    title: inputs[0] ?? "",
+    at: eventTime(payload.timestamp, now),
+    source: "notify",
+    turnId: s(payload["turn-id"]) || s(payload.turn_id) || undefined,
+  };
   if (type === "agent-turn-complete") {
-    if (endsWithQuestion(last)) return { ...base, type: "needs_input", attention: "question", summary: last };
-    return { ...base, type: "stopped", summary: last };
+    return { ...base, type: "stopped", attention: asksForInput(last) ? "question" : undefined, summary: last };
   }
   if (/approval|permission/i.test(type)) return { ...base, type: "needs_input", attention: "permission", summary: last };
   return null;
@@ -144,9 +166,42 @@ export function parseCodexHook(payload: Record<string, unknown>, env: NodeJS.Pro
     cwd: s(payload.cwd),
     transcriptPath: s(payload.transcript_path),
     at: now,
+    ...hookIdentity(payload, now),
   };
   if (name === "SessionStart") return { ...base, type: "started" };
   if (name === "UserPromptSubmit") return { ...base, type: "progress", title: s(payload.prompt) };
+  if (name === "PreToolUse")
+    return questionTool(s(payload.tool_name))
+      ? {
+          ...base,
+          type: "needs_input",
+          attention: "question",
+          requestIds: questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input),
+        }
+      : { ...base, type: "tool" };
+  if (name === "PermissionRequest")
+    return {
+      ...base,
+      type: "needs_input",
+      attention: questionTool(s(payload.tool_name)) ? "question" : "permission",
+      requestIds: questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input),
+    };
+  if (name === "PostToolUse" || name === "PostToolUseFailure")
+    return {
+      ...base,
+      type: "tool",
+      requestIds: isAsyncAcknowledgement(payload.tool_response)
+        ? []
+        : questionIds(requestIds(payload)[0] ?? "", s(payload.tool_name), payload.tool_input),
+    };
+  if (name === "Stop")
+    return {
+      ...base,
+      type: "stopped",
+      summary: s(payload.last_assistant_message),
+      attention: asksForInput(s(payload.last_assistant_message)) ? "question" : undefined,
+    };
+  if (name === "SessionEnd") return { ...base, type: "ended" };
   return null;
 }
 
@@ -159,6 +214,7 @@ function hookEntries(ctx: HookContext): Record<string, HookEntry> {
 
 export const codexAdapter: Adapter = {
   id: "codex",
+  source: { transcript: codexTranscript, locateTranscript: async (session) => findTranscript(CODEX_SESSIONS, session.sessionId, true) },
   name: "Codex",
   icon: "openai.svg",
 
@@ -166,7 +222,14 @@ export const codexAdapter: Adapter = {
     const cli = existsSync(CODEX_DIR);
     const app = CODEX_APP_PATHS.some(existsSync);
     const toml = read(CODEX_CONFIG);
-    const hooked = (findNotify(toml)?.items ?? []).some((x) => x.includes(HOOK_MARKER));
+    let hooked = false;
+    try {
+      hooked =
+        (findNotify(toml)?.items ?? []).some((x) => x.includes(HOOK_MARKER)) &&
+        hasOurHooks(parseJsonFile(read(CODEX_HOOKS), CODEX_HOOKS), CODEX_HOOK_EVENTS);
+    } catch {
+      /* Invalid config is shown as not connected. */
+    }
     const hosts: Host[] = [];
     if (cli) hosts.push("cli");
     if (app) hosts.push("app");

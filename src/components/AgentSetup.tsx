@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { BUILTIN_ADAPTERS, Adapter } from "../core/adapters";
 import { Translator } from "../core/i18n";
 import { applyPlan, installCli, resolveNode } from "../core/install";
+import { installCollector } from "../core/service";
 import { CLI_PATH } from "../core/paths";
 import { locale } from "../lib/env";
 import { agentIcon } from "./icons";
@@ -31,6 +32,7 @@ export function AgentSetup() {
       const plan = adapter.planInstall({ node, cli: CLI_PATH });
       installCli(join(environment.assetsPath, "agent-inbox.mjs"));
       applyPlan(plan);
+      await installCollector(node);
       if (!adapter.detect().hooked) throw new Error(t("setup.installNotDetected"));
       await revalidate();
       toast.style = Toast.Style.Success;

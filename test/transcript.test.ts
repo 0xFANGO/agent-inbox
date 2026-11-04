@@ -40,7 +40,8 @@ test("Claude Stop falls back to the transcript when no last message is supplied"
   const path = join(tempDir(t), "transcript.jsonl");
   writeFileSync(path, JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "要继续吗？" }] } }));
   const event = parseClaudeHook({ session_id: "s", hook_event_name: "Stop", transcript_path: path }, {})!;
-  assert.equal(event.type, "needs_input");
+  assert.equal(event.type, "stopped");
+  assert.equal(event.attention, "question");
   assert.equal(event.attention, "question");
   assert.equal(lastClaudeAssistant(path + ".missing"), "");
 });
