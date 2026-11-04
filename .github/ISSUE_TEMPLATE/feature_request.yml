@@ -1,0 +1,17 @@
+name: Feature request
+description: Describe a session-management problem you need to solve
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Use case and problem
+      description: Where does the current workflow fall short? Which agent or client is involved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Desired behavior
+      description: Describe the expected outcome and any workarounds you use today.
+    validations:
+      required: true

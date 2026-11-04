@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a session, notification, or navigation problem
+body:
+  - type: markdown
+    attributes:
+      value: Use redacted samples. Do not upload complete conversations, databases, or configuration. For vulnerabilities, read SECURITY.md first.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Commit/release, macOS, Raycast, agent version, CLI/desktop/cloud source, and terminal or tmux setup.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Which command did you open, and which actions led to the problem?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted logs or screenshots
+      description: Include only what is needed to reproduce the issue. Remove private paths, conversations, and credentials.
