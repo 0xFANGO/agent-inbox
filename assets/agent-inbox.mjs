@@ -2089,7 +2089,6 @@ var messages = {
   "action.unhandled": "Move Back to Subscriptions",
   "action.subscribe": "Subscribe",
   "action.subscribeCurrent": "Subscribe to Current Conversation",
-  "subscribe.currentSub": "Find the Agent session in the front window",
   "action.openAll": "Browse All Sessions",
   "action.unsubscribe": "Unsubscribe",
   "action.detail": "Show Details",

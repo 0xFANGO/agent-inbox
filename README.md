@@ -43,7 +43,7 @@ npm run dev
 ```
 
 1. Search for **Agent Inbox** in Raycast. Open **All Sessions → Actions (⌘K) → Connect an Agent** and connect Claude Code or Codex. For Codex, approve the new hooks with `/hooks` in the client.
-2. Open **All Sessions**, select a session, and press Return to subscribe.
+2. Open **All Sessions**, select a session, and press ⌘Return to subscribe.
 3. Open **Subscriptions** to see its status and press Return to jump back. Sessions with monitoring support notify you about new requests; importing historical state does not send old notifications.
 
 The interface and notifications use English. Open **Actions → Open Extension Preferences** for terminal, notification, and full-text search options.
@@ -54,8 +54,8 @@ Connecting an agent installs local hooks and a user background collector, backin
 
 | Raycast command  | Purpose                                                     | Shortcuts                                          |
 | ---------------- | ----------------------------------------------------------- | -------------------------------------------------- |
-| All Sessions     | Search and filter sessions; subscribe to the current window | ↵ / ⌘S subscribe · ⌘↵ jump back · ⌘I details       |
-| Subscriptions    | Act on the sessions you follow                              | ↵ jump back · ⌘D mark handled · ⌘S unsubscribe     |
+| All Sessions     | Search and filter sessions; subscribe to the current window | ↵ jump back · ⌘↵ subscribe · ⌘I details            |
+| Subscriptions    | Act on the sessions you follow                              | ↵ jump back · ⌘↵ unsubscribe · ⌘D mark handled     |
 | Session Menu Bar | Show subscribed sessions and the waiting count              | Enable or disable in Raycast's command preferences |
 
 **Waiting for input** includes questions, permission requests, and failures, quota limits, or interruptions that need attention. **Turn ended** means the agent stopped this turn; **Completed** requires an explicit completion event. Marking a session handled hides it until its state changes or a new request arrives.

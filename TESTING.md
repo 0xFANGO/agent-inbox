@@ -4,6 +4,12 @@
 
 Records dated 2026-11-04, Asia/Shanghai. Historical checkpoints below describe checks performed at those stages; they are not claims that every live workflow was rerun for the current change.
 
+## Session list shortcuts and presentation
+
+- `npm run check`: 150 tests, TypeScript, ESLint, Prettier, CLI bundling, and Raycast build passed. `npm run lint` passed, including Store screenshot metadata.
+- In native Raycast with isolated demonstration data, verified that Return dispatches the selected session to navigation without changing subscription, and Command-Return subscribes or unsubscribes. In Subscriptions, unsubscribing removed the row and updated the section count immediately. Navigation destinations were recorded in the fixture rather than opening real conversations; this does not replace the live integration checks below.
+- Checked default session focus, action-menu shortcuts, list density, and detail mode in both themes. Three Store screenshots use the same dark theme and background, 2000 × 1250 PNG, and illustrative session content. The original Raycast theme, preferences, and development build were restored afterward.
+
 ## English interface and native preferences
 
 - `npm run check`: **150/150 tests passed**, no skips, plus TypeScript, ESLint, Prettier, CLI bundling, and all three Raycast commands.

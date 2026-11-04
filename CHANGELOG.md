@@ -4,6 +4,7 @@
 
 ## [Initial Release] - {PR_MERGE_DATE}
 
+- Jump to sessions with Return, toggle subscriptions with Command-Return, and scan compact lists with subscription section counts.
 - Find Claude Code and Codex sessions by title, project, or session ID, and subscribe from history or the current window.
 - Follow session status in Raycast and the menu bar, with notifications when a subscribed conversation needs your input.
 - Jump back to desktop conversations, terminal tabs, or tmux panes, with recovery options when an exact target is unavailable.

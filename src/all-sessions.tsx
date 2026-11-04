@@ -108,7 +108,7 @@ export default function AllSessions() {
   const sessions = searchSessions(filterSessions(data ?? [], filter), search, config.contentSearchEnabled ? contentMatches : {}).filter(
     (s) => search.trim() || s.title || s.summary || s.subscribed || s.status !== "idle",
   );
-  const quickActionVisible = search.trim().length === 0;
+  const hasSearch = search.trim().length > 0;
 
   async function toggle(s: Session) {
     const next = !s.subscribed;
@@ -132,7 +132,7 @@ export default function AllSessions() {
   return (
     <List
       isLoading={isLoading || indexing || searching || search !== debouncedSearch}
-      isShowingDetail={showDetail && sessions.length > 0 && selectedId !== "subscribe-current"}
+      isShowingDetail={showDetail && sessions.some((s) => key(s) === selectedId)}
       searchBarPlaceholder={t(config.contentSearchEnabled ? "search.allPlaceholder" : "search.titlesPlaceholder")}
       onSearchTextChange={setSearch}
       filtering={false}
@@ -150,47 +150,12 @@ export default function AllSessions() {
       actions={
         <ActionPanel>
           <Action title={t("action.refresh")} icon={Icon.ArrowClockwise} onAction={revalidate} />
+          <SubscribeCurrentAction t={t} />
           <ConnectionActions />
         </ActionPanel>
       }
     >
       <List.EmptyView icon={Icon.MagnifyingGlass} title={t("empty.all.title")} description={t("empty.filter.desc")} />
-      {quickActionVisible && (
-        <List.Section>
-          <List.Item
-            id="subscribe-current"
-            icon={Icon.Bell}
-            title={t("action.subscribeCurrent")}
-            subtitle={t("subscribe.currentSub")}
-            actions={
-              <ActionPanel>
-                <Action title={t("action.subscribeCurrent")} icon={Icon.Bell} onAction={subscribeCurrent} />
-                <ConnectionActions />
-              </ActionPanel>
-            }
-          />
-        </List.Section>
-      )}
-      {config.contentSearchEnabled && (indexing || indexProgress.failed > 0) && (
-        <List.Section>
-          <List.Item
-            id="search-index-status"
-            icon={indexing ? Icon.ArrowClockwise : Icon.ExclamationMark}
-            title={indexing ? t("search.indexing", { n: indexProgress.completed, total: indexProgress.total }) : t("search.indexFailed")}
-            subtitle={indexing ? t("search.indexingDesc") : t("search.indexFailedDesc", { n: indexProgress.failed })}
-            actions={
-              <ActionPanel>
-                <Action
-                  title={t("action.refresh")}
-                  icon={Icon.ArrowClockwise}
-                  shortcut={Keyboard.Shortcut.Common.Refresh}
-                  onAction={revalidate}
-                />
-              </ActionPanel>
-            }
-          />
-        </List.Section>
-      )}
       <List.Section
         title={t(
           filter === "all"
@@ -216,11 +181,31 @@ export default function AllSessions() {
             match={config.contentSearchEnabled && search.trim() ? contentMatches[key(s)]?.snippet : undefined}
           />
         ))}
-        {!isLoading && sessions.length === 0 && (quickActionVisible || !config.contentSearchEnabled) && (
+        {!isLoading && sessions.length === 0 && hasSearch && !config.contentSearchEnabled && (
           <List.Item icon={Icon.MagnifyingGlass} title={t("empty.all.title")} subtitle={t("empty.filter.desc")} />
         )}
       </List.Section>
-      {!config.contentSearchEnabled && !quickActionVisible && (
+      {config.contentSearchEnabled && (indexing || indexProgress.failed > 0) && (
+        <List.Section>
+          <List.Item
+            id="search-index-status"
+            icon={indexing ? Icon.ArrowClockwise : Icon.ExclamationMark}
+            title={indexing ? t("search.indexing", { n: indexProgress.completed, total: indexProgress.total }) : t("search.indexFailed")}
+            subtitle={indexing ? t("search.indexingDesc") : t("search.indexFailedDesc", { n: indexProgress.failed })}
+            actions={
+              <ActionPanel>
+                <Action
+                  title={t("action.refresh")}
+                  icon={Icon.ArrowClockwise}
+                  shortcut={Keyboard.Shortcut.Common.Refresh}
+                  onAction={revalidate}
+                />
+              </ActionPanel>
+            }
+          />
+        </List.Section>
+      )}
+      {!config.contentSearchEnabled && hasSearch && (
         <List.Section>
           <List.Item
             id="enable-content-search"
@@ -255,10 +240,10 @@ function Row(props: {
   if (s.subscribed) accessories.push({ icon: { source: Icon.Bell, tintColor: Color.Yellow }, tooltip: t("section.subscribed") });
   const dot = statusDot(s);
   if (dot) accessories.push({ icon: dot, tooltip: statusLabel(s, t) });
-  if (s.status === "ready" || s.status === "unknown") accessories.push({ text: statusLabel(s, t) });
+  if (!showDetail && (s.status === "ready" || s.status === "unknown")) accessories.push({ text: statusLabel(s, t) });
   if (!showDetail) accessories.push({ text: rowTime(s, t) });
-  if (props.match) accessories.push({ icon: Icon.MagnifyingGlass, tooltip: t("search.contentMatch") });
-  const subtitle = [hostTag(s.host), project, props.match || s.summary].filter(Boolean).join(" · ");
+  if (props.match && !showDetail) accessories.push({ icon: Icon.MagnifyingGlass, tooltip: t("search.contentMatch") });
+  const subtitle = [project, hostTag(s.host), props.match].filter(Boolean).join(" · ");
 
   return (
     <List.Item
@@ -271,13 +256,13 @@ function Row(props: {
       detail={<SessionDetail session={s} t={t} />}
       actions={
         <ActionPanel title={s.title}>
+          {/* Raycast assigns Return and Command-Return to the first two actions. */}
+          <Action title={t("action.jump")} icon={Icon.ArrowNe} onAction={() => jumpBack(s, config, t)} />
           <Action
             title={s.subscribed ? t("action.unsubscribe") : t("action.subscribe")}
             icon={s.subscribed ? Icon.BellDisabled : Icon.Bell}
-            shortcut={Keyboard.Shortcut.Common.Save}
             onAction={props.onToggle}
           />
-          <Action title={t("action.jump")} icon={Icon.ArrowNe} onAction={() => jumpBack(s, config, t)} />
           <Action
             title={showDetail ? t("action.hideDetail") : t("action.detail")}
             icon={Icon.Sidebar}
@@ -290,9 +275,21 @@ function Row(props: {
             shortcut={Keyboard.Shortcut.Common.Refresh}
             onAction={props.onRefresh}
           />
+          <SubscribeCurrentAction t={t} />
           <ConnectionActions />
         </ActionPanel>
       }
+    />
+  );
+}
+
+function SubscribeCurrentAction({ t }: { t: Translator }) {
+  return (
+    <Action
+      title={t("action.subscribeCurrent")}
+      icon={Icon.Bell}
+      shortcut={{ modifiers: ["cmd", "shift"], key: "return" }}
+      onAction={subscribeCurrent}
     />
   );
 }
